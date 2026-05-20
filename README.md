@@ -6,7 +6,7 @@ Includes a skill, enforcement hooks, a slash-command validator, and an optional 
 
 ## Install the plugin
 
-```
+```text
 /plugin marketplace add rsantosCL/intent-layer
 ```
 
