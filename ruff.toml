@@ -1,0 +1,6 @@
+target-version = "py39"
+
+extend-include = ["bin/*"]
+
+[lint]
+select = ["E", "F", "W"]

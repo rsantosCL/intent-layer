@@ -1,0 +1,12 @@
+[global]
+disable = [
+    "MD013",  # line length — repo style uses long lines (no hard wraps)
+    "MD053",  # unused link definitions — ## Downlinks uses bare definitions intentionally; no inline [label][] usage required
+]
+exclude = [
+    ".git",
+]
+
+[MD041]
+# Claude Code skill frontmatter fields — https://code.claude.com/docs/en/skills#frontmatter-reference
+front-matter-title-pattern = "^(name|description|when_to_use|argument-hint|arguments|disable-model-invocation|user-invocable|allowed-tools|model|effort|context|agent|hooks|paths|shell):"
