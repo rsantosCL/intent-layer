@@ -7,7 +7,7 @@ Includes a skill, enforcement hooks, a slash-command validator, and an optional 
 ## Install the plugin
 
 ```
-/plugin marketplace add rsantos/intent-layer
+/plugin marketplace add rsantosCL/intent-layer
 ```
 
 Once installed, the skill and hooks are active in every project automatically — no per-project setup needed.
@@ -71,7 +71,7 @@ If you cloned the repo instead of installing as a plugin, add to each project's 
 For use outside Claude Code — CI pipelines, pre-commit hooks, shell scripts:
 
 ```sh
-git clone https://github.com/rsantos/intent-layer
+git clone https://github.com/rsantosCL/intent-layer
 cd intent-layer
 ./install.sh
 ```
