@@ -16,14 +16,14 @@ Once installed, the skill and hooks are active in every project automatically �
 
 | Command | What it does |
 |---|---|
-| `/intent-layer` | Auto-detect: create from scratch or sync after changes |
+| `/intent-layer:intent-layer` | Auto-detect: create from scratch or sync after changes |
 | `/intent-layer:create` | Build the intent layer from scratch (leaf-first) |
 | `/intent-layer:update` | Sync nodes after a branch, PR, or staged diff |
 | `/intent-layer:validate` | Validate all nodes and offload files, report issues |
 
 ### How auto-detect works
 
-Invoking `/intent-layer` without a suffix reads the context — existing nodes? recent diff? — and decides whether to run Create or Update mode.
+Invoking `/intent-layer:intent-layer` reads the context — existing nodes? recent diff? — and decides whether to run Create or Update mode. The explicit `:create` and `:update` commands are preferred when you already know which mode you need.
 
 ## Enforcement hooks
 
