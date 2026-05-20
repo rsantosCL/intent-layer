@@ -1,0 +1,11 @@
+{
+  "name": "intent-layer",
+  "owner": { "name": "Ricardo Santos" },
+  "plugins": [
+    {
+      "name": "intent-layer",
+      "source": ".",
+      "description": "Intent layer skill, enforcement hooks, and validator for CLAUDE.md node trees"
+    }
+  ]
+}

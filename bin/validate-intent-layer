@@ -1,0 +1,531 @@
+#!/usr/bin/python3
+# Read bin-docs/validate-intent-layer.md before reading this file.
+# Validates intent layer nodes (CLAUDE.md) and offload files under a directory tree.
+# Usage: validate-intent-layer [--json|--jsonl] [directory]  (defaults to .)
+
+import json
+import pathlib
+import re
+import sys
+
+# --- constants ---------------------------------------------------------------
+
+_NAMING_JSON = (
+    pathlib.Path(__file__).resolve().parent.parent
+    / "skills/intent-layer/references/offload-naming.json"
+)
+
+
+def _load_naming():
+    try:
+        data = json.loads(_NAMING_JSON.read_text())
+        return re.compile(data["offload_name_regex"]), frozenset(data["blocklisted"])
+    except (OSError, KeyError, re.error) as exc:
+        print(
+            f"validate-intent-layer: cannot load {_NAMING_JSON}: {exc}", file=sys.stderr
+        )
+        sys.exit(1)
+
+
+OFFLOAD_NAME_RE, BLOCKLISTED = _load_naming()
+TOKEN_WARN_PCT = 90
+MD_ICON = "●"
+WARN_ICON = "⚠"
+ERROR_ICON = "✖"
+_E = "\033"
+COLORS = {
+    "RED": f"{_E}[0;31m",
+    "YELLOW": f"{_E}[0;33m",
+    "GREEN": f"{_E}[0;32m",
+    "BOLD": f"{_E}[1m",
+    "DIM": f"{_E}[2m",
+    "RESET": f"{_E}[0m",
+}
+NO_COLORS = {k: "" for k in COLORS}
+
+DOWNLINK_RE = re.compile(r"^\[([^\]]+)\]:\s*(\S+)(?:\s+[\"'(](.+?)[\"')])?$")
+CLAUDE_MACHINERY_RE = re.compile(
+    r"/(\.claude|[^/]*claude[^/]*)/(skills|agents|commands|hooks|plans|memory|plugins)/"
+)
+
+# --- helpers -----------------------------------------------------------------
+
+
+def _tokens(path):
+    try:
+        chars = pathlib.Path(path).stat().st_size
+    except OSError:
+        return 0
+    return chars * 10 // 35
+
+
+# --- validator ---------------------------------------------------------------
+
+
+class Validator:
+    def __init__(self, target, output_format, use_colors):
+        self.target = pathlib.Path(target).resolve()
+        self.fmt = output_format
+        self.c = COLORS if use_colors else NO_COLORS
+        self.errors = 0
+        self.warnings = 0
+        self.visited = set()  # recursion guard for check_node
+        self.seen = set()  # orphan-check input; resolved paths
+        self.node_data = {}  # file -> render data (text mode)
+        self.json_files = []
+        self.json_orphans = []
+
+    def _within_target(self, path):
+        try:
+            path.relative_to(self.target)
+            return True
+        except ValueError:
+            return False
+
+    def check_node(self, file):
+        file = pathlib.Path(file).resolve()
+        if file in self.visited:
+            return
+        self.visited.add(file)
+        self.seen.add(file)
+
+        is_claude = file.name == "CLAUDE.md"
+        directory = file.parent
+        rel = str(file.relative_to(self.target))
+        basename = file.name
+        tok = _tokens(file)
+        token_pct = tok * 100 // 1000
+
+        # Phase 1: collect issues
+        issues = []
+        content = file.read_text(errors="replace")
+
+        if not re.search(r"^# ", content, re.MULTILINE):
+            self.errors += 1
+            issues.append(("error", "missing H1 heading"))
+        if not re.search(r"^## Purpose & Scope", content, re.MULTILINE):
+            self.errors += 1
+            issues.append(("error", "missing '## Purpose & Scope' section"))
+
+        if is_claude:
+            if directory == self.target and (directory / "AGENTS.md").exists():
+                self.errors += 1
+                issues.append(("error", "AGENTS.md coexists at project root"))
+            if tok > 1000:
+                self.errors += 1
+                issues.append(("error", f"~{tok} tokens — exceeds 1,000 token cap"))
+            elif token_pct >= TOKEN_WARN_PCT:
+                self.warnings += 1
+                issues.append(
+                    (
+                        "warn",
+                        f"~{tok} tokens — exceeds {TOKEN_WARN_PCT}%"
+                        " of the 1,000 token cap",
+                    )
+                )
+        else:
+            if basename in BLOCKLISTED:
+                self.errors += 1
+                issues.append(
+                    (
+                        "error",
+                        f"offload file uses reserved/generic name '{basename}'"
+                        " — rename to ALL-CAPS topic-specific (e.g. MODULE-DETAILS.md)",
+                    )
+                )
+            elif not OFFLOAD_NAME_RE.match(basename):
+                self.errors += 1
+                issues.append(
+                    (
+                        "error",
+                        f"offload file name '{basename}' must be ALL-CAPS,"
+                        " hyphen-separated (e.g. MODULE-DETAILS.md)",
+                    )
+                )
+
+        # Phase 2: scan downlinks, collect children
+        children = []  # offload .md files (tree children)
+        node_children = []  # CLAUDE.md files (independent nodes)
+        in_downlinks = False
+
+        for line in content.splitlines():
+            if line.startswith("## Downlinks"):
+                in_downlinks = True
+                continue
+            elif in_downlinks and line.startswith("## "):
+                in_downlinks = False
+
+            if not in_downlinks:
+                continue
+
+            if not line.strip():
+                continue
+
+            m = DOWNLINK_RE.match(line)
+            if not m:
+                self.errors += 1
+                issues.append(("error", f"invalid downlink line: {line}"))
+                continue
+
+            target_path, description = m.group(2), m.group(3)
+            if not description:
+                self.errors += 1
+                issues.append(
+                    ("error", f"downlink missing description: {line.strip()}")
+                )
+
+            if not target_path.endswith(".md"):
+                self.warnings += 1
+                issues.append(
+                    ("warn", f"downlink target is not a .md file: {target_path}")
+                )
+                continue
+
+            linked_file = (directory / target_path).resolve()
+            if not linked_file.exists():
+                self.errors += 1
+                issues.append(("error", f"broken downlink: {target_path}"))
+                continue
+
+            if self._within_target(linked_file):
+                self.seen.add(linked_file)
+                if linked_file.name == "CLAUDE.md":
+                    node_children.append(linked_file)
+                else:
+                    children.append(linked_file)
+
+        all_children = sorted(
+            children + node_children,
+            key=lambda p: (0 if p.parent != directory else 1, p),
+        )
+
+        # Store for text rendering (deferred until after orphan detection)
+        self.node_data[file] = {
+            "is_claude": is_claude,
+            "rel": rel,
+            "basename": basename,
+            "tok": tok,
+            "token_pct": token_pct,
+            "issues": issues,
+            "all_children": all_children,
+            "directory": directory,
+        }
+
+        # Emit json/jsonl immediately (not deferred)
+        if self.fmt in ("json", "jsonl"):
+            kind = "node" if is_claude else "offload"
+            file_obj = {
+                "path": rel,
+                "kind": kind,
+                "tokens": tok,
+                "token_pct": token_pct,
+                "issues": [{"level": lv, "message": msg} for lv, msg in issues],
+            }
+            if self.fmt == "jsonl":
+                print(json.dumps(file_obj))
+            else:
+                self.json_files.append(file_obj)
+
+        for child in all_children:
+            self.check_node(child)
+
+    def render_text_tree(self, file, connector, continuation, orphan_map):
+        data = self.node_data[file]
+        c = self.c
+        is_claude = data["is_claude"]
+        tok = data["tok"]
+        directory = data["directory"]
+
+        token_color = ""
+        if is_claude and tok > 1000:
+            token_color = c["RED"]
+
+        if is_claude:
+            print(
+                f"{connector}{c['BOLD']}{MD_ICON} {data['rel']}{c['RESET']}"
+                f"  {token_color}{tok} tokens{c['RESET']}"
+            )
+        else:
+            print(
+                f"{connector}{MD_ICON} {data['basename']}"
+                f"  {c['DIM']}{tok} tokens  (offload){c['RESET']}"
+            )
+
+        # Merge regular children and orphans, sort same-dir first then alpha
+        regular = [(p, None) for p in data["all_children"]]
+        orphans = [(p, r) for p, r in orphan_map.get(file, [])]
+        all_items = sorted(
+            regular + orphans,
+            key=lambda x: (0 if x[0].parent != directory else 1, x[0]),
+        )
+
+        has_children = bool(all_items)
+        issue_prefix = f"{continuation}│  " if has_children else f"{continuation}   "
+
+        for level, msg in data["issues"]:
+            if " — " in msg:
+                pre, suf = msg.split(" — ", 1)
+                suf = " — " + suf
+            else:
+                pre, suf = msg, ""
+            if level == "error":
+                print(f"{issue_prefix}{c['RED']}{ERROR_ICON} {pre}{c['RESET']}{suf}")
+            else:
+                print(f"{issue_prefix}{c['YELLOW']}{WARN_ICON} {pre}{c['RESET']}{suf}")
+
+        n = len(all_items)
+        for i, (item_path, reason) in enumerate(all_items, 1):
+            is_last = i == n
+            child_connector = f"{continuation}{'└─' if is_last else '├─'} "
+            child_continuation = f"{continuation}{'   ' if is_last else '│  '}"
+            if reason is None:
+                self.render_text_tree(
+                    item_path, child_connector, child_continuation, orphan_map
+                )
+            else:
+                orphan_tok = _tokens(item_path)
+                orphan_rel = str(item_path.relative_to(self.target))
+                print(
+                    f"{child_connector}{c['YELLOW']}{WARN_ICON} {orphan_rel}"
+                    f"  {orphan_tok} tokens  ({reason}){c['RESET']}"
+                )
+
+    def orphan_check(self, claude_files):
+        orphan_map = {}  # ancestor node file -> [(orphan_path, reason), ...]
+
+        def find_ancestor(directory):
+            cur = directory
+            while True:
+                candidate = (cur / "CLAUDE.md").resolve()
+                if candidate in self.node_data:
+                    return candidate
+                parent = cur.parent
+                if parent == cur:
+                    break
+                cur = parent
+            root = (self.target / "CLAUDE.md").resolve()
+            return root if root in self.node_data else None
+
+        def add_orphan(path, reason):
+            self.warnings += 1
+            # CLAUDE.md orphans: search from grandparent so the node doesn't
+            # find itself as its own ancestor
+            search_from = (
+                path.parent.parent if path.name == "CLAUDE.md" else path.parent
+            )
+            ancestor = find_ancestor(search_from)
+            if ancestor:
+                orphan_map.setdefault(ancestor, []).append((path, reason))
+            if self.fmt == "jsonl":
+                print(
+                    json.dumps(
+                        {
+                            "type": "orphan",
+                            "path": str(path.relative_to(self.target)),
+                            "message": reason,
+                        }
+                    )
+                )
+            elif self.fmt == "json":
+                self.json_orphans.append(
+                    {
+                        "path": str(path.relative_to(self.target)),
+                        "message": reason,
+                    }
+                )
+
+        # Check for unreferenced CLAUDE.md nodes
+        for f in claude_files:
+            f = pathlib.Path(f).resolve()
+            if f == self.target / "CLAUDE.md":
+                continue
+            directory = f.parent
+            ancestor = None
+            cur = directory.parent
+            while str(cur).startswith(str(self.target)):
+                if (cur / "CLAUDE.md").exists():
+                    ancestor = cur / "CLAUDE.md"
+                    break
+                if cur == self.target:
+                    break
+                cur = cur.parent
+
+            if ancestor is None:
+                add_orphan(f, "no ancestor CLAUDE.md found")
+                continue
+
+            ancestor_dir = ancestor.parent
+            rel_from_ancestor = str(f.relative_to(ancestor_dir))
+            dir_name_claude = f"{f.parent.name}/CLAUDE.md"
+            # Only look in ## Downlinks — prose references carry no contract
+            in_dl = False
+            ancestor_downlinks = ""
+            for line in ancestor.read_text(errors="replace").splitlines():
+                if line.startswith("## Downlinks"):
+                    in_dl = True
+                    continue
+                elif in_dl and line.startswith("## "):
+                    break
+                if in_dl:
+                    ancestor_downlinks += line + "\n"
+            if (
+                rel_from_ancestor not in ancestor_downlinks
+                and dir_name_claude not in ancestor_downlinks
+            ):
+                add_orphan(
+                    f,
+                    f"not referenced in {str(ancestor.relative_to(self.target))}",
+                )
+
+        # Check for unlinked offload-candidate .md files
+        for md in sorted(self.target.rglob("*.md")):
+            if md.name == "CLAUDE.md":
+                continue
+            md_str = str(md)
+            if "/.git/" in md_str:
+                continue
+            if "/.claude/" in md_str:
+                continue
+            if CLAUDE_MACHINERY_RE.search(md_str):
+                continue
+            if md.name in BLOCKLISTED:
+                continue
+            if not OFFLOAD_NAME_RE.match(md.name):
+                continue
+            if md.resolve() not in self.seen:
+                add_orphan(md.resolve(), "not downlinked from any node")
+
+        return orphan_map
+
+
+# --- main --------------------------------------------------------------------
+
+
+def main():
+    output_format = "text"
+    target = "."
+
+    i = 0
+    args = sys.argv[1:]
+    while i < len(args):
+        arg = args[i]
+        if arg == "--help":
+            print("Usage: validate-intent-layer [--json/--jsonl] [directory]\n")
+            print(
+                "Validates intent layer nodes (CLAUDE.md) and offload files"
+                " under a directory tree."
+            )
+            print(
+                "Defaults to the current directory."
+                " Exits 1 on any error, 0 on clean pass.\n"
+            )
+            print("Flags:")
+            print(
+                "  (none)   Human-readable output with tree layout,"
+                " colors, and a summary line."
+            )
+            print(
+                "  --json   Machine-readable: single JSON document emitted"
+                " after all processing."
+            )
+            print(
+                "           Use when you need the full result at once"
+                " (scripting, AI tool calls)."
+            )
+            print(
+                "  --jsonl  Machine-readable: one JSON object per line,"
+                " streamed as files are visited."
+            )
+            print(
+                "           Use when processing output incrementally or piping into jq."
+            )
+            sys.exit(0)
+        elif arg == "--json":
+            output_format = "json"
+        elif arg == "--jsonl":
+            output_format = "jsonl"
+        elif arg.startswith("-"):
+            print(f"Unknown flag: {arg}", file=sys.stderr)
+            sys.exit(1)
+        else:
+            target = arg
+        i += 1
+
+    target_path = pathlib.Path(target).resolve()
+    use_colors = output_format == "text" and sys.stdout.isatty()
+    validator = Validator(str(target_path), output_format, use_colors)
+
+    claude_files = sorted(
+        f for f in target_path.rglob("CLAUDE.md") if "/.git/" not in str(f)
+    )
+
+    if not claude_files:
+        print(f"No CLAUDE.md files found under {target_path}")
+        sys.exit(1)
+
+    if output_format == "jsonl":
+        print(json.dumps({"type": "start", "target": str(target_path)}))
+
+    for f in claude_files:
+        validator.check_node(f)
+
+    orphan_map = validator.orphan_check(claude_files)
+
+    if output_format == "text":
+        root = (target_path / "CLAUDE.md").resolve()
+        validator.render_text_tree(root, "", "", orphan_map)
+
+    errors = validator.errors
+    warnings = validator.warnings
+    pass_val = errors == 0
+    c = COLORS if use_colors else NO_COLORS
+
+    if output_format == "json":
+        print(
+            json.dumps(
+                {
+                    "target": str(target_path),
+                    "summary": {
+                        "pass": pass_val,
+                        "errors": errors,
+                        "warnings": warnings,
+                    },
+                    "files": validator.json_files,
+                    "orphans": validator.json_orphans,
+                }
+            )
+        )
+    elif output_format == "jsonl":
+        print(
+            json.dumps(
+                {
+                    "type": "summary",
+                    "pass": pass_val,
+                    "errors": errors,
+                    "warnings": warnings,
+                }
+            )
+        )
+    else:
+        err_s = "" if errors == 1 else "s"
+        warn_s = "" if warnings == 1 else "s"
+        err_part = (
+            f"{c['RED']}{errors} error{err_s}{c['RESET']}" if errors > 0 else "0 errors"
+        )
+        warn_part = (
+            f"{c['YELLOW']}{warnings} warning{warn_s}{c['RESET']}"
+            if warnings > 0
+            else "0 warnings"
+        )
+        result_part = (
+            f"{c['RED']}FAIL{c['RESET']}"
+            if errors > 0
+            else f"{c['GREEN']}PASS{c['RESET']}"
+        )
+        print(f"\n{err_part} · {warn_part} · {result_part}")
+
+    sys.exit(1 if errors > 0 else 0)
+
+
+if __name__ == "__main__":
+    main()

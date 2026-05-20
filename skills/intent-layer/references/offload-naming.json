@@ -1,0 +1,24 @@
+{
+  "offload_name_regex": "^[A-Z][A-Z0-9-]*\\.md$",
+  "blocklisted": [
+    "CHANGELOG.md",
+    "LICENSE.md",
+    "LICENCE.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    "OVERVIEW.md",
+    "INDEX.md",
+    "NOTICE.md",
+    "AUTHORS.md",
+    "SECURITY.md",
+    "MAINTAINERS.md",
+    "GOVERNANCE.md",
+    "AGENTS.md",
+    "COPYING.md",
+    "INSTALL.md",
+    "HISTORY.md",
+    "TODO.md",
+    "FAQ.md",
+    "SKILL.md"
+  ]
+}

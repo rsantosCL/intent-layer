@@ -1,0 +1,33 @@
+{
+  "name": "intent-layer",
+  "description": "Create and maintain CLAUDE.md intent nodes across repositories — skill, enforcement hooks, and validator",
+  "version": "1.0.0",
+  "author": {
+    "name": "Ricardo Santos"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intent-layer-preload.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intent-layer-stop.sh\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
