@@ -18,6 +18,8 @@ All three hooks resolve `offload-naming.json` from `${CLAUDE_PLUGIN_ROOT}/skills
 
 Preload and list partition the file space using the same naming rules: preload handles intent artifacts (CLAUDE.md + offload-named files), list/stop handles everything else (source files). This split is deliberate — changing the naming convention in one without the other creates blind spots where edits go unmonitored.
 
+**Directory blocklist exception:** both preload and list share a `_is_downlinked()` helper that walks ancestor directories looking for a Markdown link definition (`]: relative/path`) in any `CLAUDE.md`. Files under `blocklisted_dirs` (e.g. `.venv/`, `node_modules/`, `docs/`) are skipped by default, but if `_is_downlinked` finds the file is explicitly downlinked from an ancestor node, the block is bypassed and the file is treated as a normal intent artifact. This means deliberately placing an offload file under `docs/` and downlinking it works correctly.
+
 ## Anti-patterns
 
 - **Don't emit any output from preload for non-intent files.** Even a blank line is treated as hook output by Claude Code and will block the write operation.

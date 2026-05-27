@@ -14,7 +14,7 @@ Claude Code plugin that ships tooling for creating and maintaining CLAUDE.md int
 
 **Git hooks:** `.gitconfig` sets `core.hooksPath = .git-hooks`. Clones must run `git config --local include.path ../.gitconfig` to activate. `.git-hooks/pre-commit` lints staged files: shellcheck --shell=sh for `install.sh` (strict POSIX), shellcheck --shell=bash + bash -n for all other `.sh`, ruff for `bin/*`, jq for `.json`, rumdl for `.md`. `.shellcheckrc` defaults to bash; the pre-commit hook overrides to sh for `install.sh`. `.rumdl.toml` disables MD013 (long lines are intentional) and MD053 (downlink definitions aren't referenced inline); configures MD041 to recognize `description:` frontmatter in command files.
 
-**Shared naming contract:** `skills/intent-layer/references/offload-naming.json` is the single source of truth for offload file naming rules (regex + blocklist). Consumed by hooks, the validator, and the skill's own enforcement. Change it once, all consumers pick it up — but verify all three still parse correctly.
+**Shared naming contract:** `skills/intent-layer/references/offload-naming.json` is the single source of truth for offload file naming rules. Three fields: `offload_name_regex` (valid offload basename pattern), `blocklisted` (reserved basenames like README, TODO), and `blocklisted_dirs` (directory name components to skip entirely, e.g. `.venv`, `node_modules`, `docs`). Consumed by hooks, the validator, and the skill's own enforcement. Change it once, all consumers pick it up — but verify all three still parse correctly.
 
 ## Anti-patterns
 

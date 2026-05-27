@@ -1,5 +1,16 @@
 {
   "offload_name_regex": "^[A-Z][A-Z0-9-]*\\.md$",
+  "blocklisted_dirs": [
+    ".venv",
+    "venv",
+    "env",
+    "node_modules",
+    "vendor",
+    "__pycache__",
+    ".tox",
+    "docs",
+    "doc"
+  ],
   "blocklisted": [
     "CHANGELOG.md",
     "LICENSE.md",

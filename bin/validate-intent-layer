@@ -19,7 +19,11 @@ _NAMING_JSON = (
 def _load_naming():
     try:
         data = json.loads(_NAMING_JSON.read_text())
-        return re.compile(data["offload_name_regex"]), frozenset(data["blocklisted"])
+        return (
+            re.compile(data["offload_name_regex"]),
+            frozenset(data["blocklisted"]),
+            frozenset(data.get("blocklisted_dirs", [])),
+        )
     except (OSError, KeyError, re.error) as exc:
         print(
             f"validate-intent-layer: cannot load {_NAMING_JSON}: {exc}", file=sys.stderr
@@ -27,7 +31,13 @@ def _load_naming():
         sys.exit(1)
 
 
-OFFLOAD_NAME_RE, BLOCKLISTED = _load_naming()
+OFFLOAD_NAME_RE, BLOCKLISTED, BLOCKLISTED_DIRS = _load_naming()
+
+
+def _in_blocklisted_dir(path: pathlib.Path) -> bool:
+    return any(part in BLOCKLISTED_DIRS for part in path.parts)
+
+
 TOKEN_WARN_PCT = 90
 MD_ICON = "●"
 WARN_ICON = "⚠"
@@ -388,6 +398,8 @@ class Validator:
                 continue
             if CLAUDE_MACHINERY_RE.search(md_str):
                 continue
+            if _in_blocklisted_dir(md):
+                continue
             if md.name in BLOCKLISTED:
                 continue
             if not OFFLOAD_NAME_RE.match(md.name):
@@ -456,7 +468,9 @@ def main():
     validator = Validator(str(target_path), output_format, use_colors)
 
     claude_files = sorted(
-        f for f in target_path.rglob("CLAUDE.md") if "/.git/" not in str(f)
+        f
+        for f in target_path.rglob("CLAUDE.md")
+        if "/.git/" not in str(f) and not _in_blocklisted_dir(f)
     )
 
     if not claude_files:

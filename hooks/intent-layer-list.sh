@@ -62,6 +62,23 @@ if [[ -r "$naming_json" ]]; then
     OFFLOAD_NAME_REGEX=$(jq -r '.offload_name_regex' "$naming_json")
 fi
 
+# Returns 0 if $1 (absolute path) is a downlink target in any ancestor CLAUDE.md.
+_is_downlinked() {
+    local d
+    d=$(dirname -- "$1")
+    while :; do
+        if [[ -f "$d/CLAUDE.md" ]]; then
+            local rel="${1#"$d/"}"
+            grep -qF "]: $rel" "$d/CLAUDE.md" 2>/dev/null && return 0
+        fi
+        local parent
+        parent=$(dirname -- "$d")
+        [[ "$parent" == "$d" ]] && break
+        d="$parent"
+    done
+    return 1
+}
+
 is_ignored() {
     local basename
     basename=$(basename "$1")
@@ -69,6 +86,16 @@ is_ignored() {
     [[ "$basename" == "CLAUDE.md" ]] && return 0
 
     if [[ -r "$naming_json" ]]; then
+        # Skip files under blocklisted directories (e.g. .venv/, node_modules/, docs/)
+        # unless the file is explicitly downlinked from an ancestor CLAUDE.md.
+        if jq -e --arg p "$1" '
+          (.blocklisted_dirs // []) as $dirs |
+          ($p | split("/") | any(.[]; . as $c | $dirs | index($c) != null))
+        ' "$naming_json" > /dev/null 2>&1; then
+            # $1 is repo-relative; prefix repo root for the ancestor walk
+            _is_downlinked "$repo/$1" || return 0
+        fi
+
         jq -e --arg n "$basename" '.blocklisted | index($n) != null' "$naming_json" > /dev/null 2>&1 && return 0
     fi
 
