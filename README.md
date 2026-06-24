@@ -30,7 +30,7 @@ Invoking `/intent-layer:intent-layer` reads the context — existing nodes? rece
 The plugin registers two hooks automatically:
 
 - **PreToolUse (Write|Edit)** — injects `non-negotiable-rules.md` + `size-rules.md` into context before the agent writes any CLAUDE.md node or offload file.
-- **Stop** — after each turn, checks whether any edited source files have a stale owning node and prompts an update if so.
+- **PostToolUse (Write|Edit)** — after any write to a CLAUDE.md or offload file, runs the validator and injects errors into context so they're fixed immediately.
 
 ### Non-plugin install
 
@@ -51,13 +51,14 @@ If you cloned the repo instead of installing as a plugin, add to each project's 
         ]
       }
     ],
-    "Stop": [
+    "PostToolUse": [
       {
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"<path-to-repo>/hooks/intent-layer-stop.sh\"",
-            "timeout": 60
+            "command": "bash \"<path-to-repo>/hooks/intent-layer-validate.sh\"",
+            "timeout": 15
           }
         ]
       }
@@ -76,7 +77,7 @@ cd intent-layer
 ./install.sh
 ```
 
-This symlinks `bin/validate-intent-layer` to `~/.local/bin/validate-intent-layer`. Ensure `~/.local/bin` is on your `PATH`.
+This symlinks `bin/validate-intent-layer` to `~/.local/bin/validate-intent-layer` and pre-grants the Bash permission needed for the `:validate` command to run without a prompt. Ensure `~/.local/bin` is on your `PATH`.
 
 ```sh
 validate-intent-layer [--json|--jsonl] [directory]

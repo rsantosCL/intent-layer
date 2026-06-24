@@ -230,6 +230,13 @@ If the diff includes new or modified docs (`.md`, `.rst`, `.txt`, etc.), check w
 
 Update the most specific (deepest) affected node first. Then check if the change cascades to ancestor nodes — update them only if their summary is now inaccurate.
 
+**Compression must never drop signal.** If a node is over the token cap after an update, do not silently discard existing knowledge to make room. Instead:
+
+1. **Offload** — move detail that is still relevant but lower-priority into a new offload file, downlinked from the node.
+2. **Split** — if the directory has grown to the point where a subdirectory now warrants its own node (all three hard reasons in `references/size-rules.md` are met), create it and let the parent summarize it.
+
+Trimming prose to fit is fine when the removed words added no signal. Trimming a contract, invariant, anti-pattern, or entry-point description is never acceptable — that knowledge must go somewhere, even if the node cannot hold it directly.
+
 ### Step 6: Report changes
 
 Tell the user which nodes were updated and briefly why. For any node you skipped, explain why it didn't need updating.

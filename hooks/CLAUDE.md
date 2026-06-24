@@ -10,9 +10,9 @@ Four hook scripts — two active, two parked — enforcing intent-layer rules at
 
 **`intent-layer-validate.sh`** (PostToolUse, Write|Edit) — After any write to a CLAUDE.md or offload file, runs `bin/validate-intent-layer --json` on the owning node's directory and injects errors into context via `hookSpecificOutput.additionalContext`. Silently exits on pass, non-intent files, or when no CLAUDE.md is found in the ancestor chain. Runs the validator as a direct subprocess (not via the Bash tool), so it never triggers a permission prompt.
 
-**`intent-layer-stop.sh`** (not wired — parked) — Stop hook that shells out to `claude -p --model haiku` to judge whether source-file edits require CLAUDE.md updates. Removed from `plugin.json` because the ~30s Haiku latency was too slow for everyday use. Kept in the repo as a reference implementation; re-wire in `plugin.json` to restore staleness detection.
+**`intent-layer-stop.sh`** (parked) — Stop hook using `claude -p --model haiku` to detect stale nodes. Removed from `plugin.json` due to ~30s latency. Re-wire there to restore staleness detection.
 
-**`intent-layer-list.sh`** (not wired — parked) — Helper for the stop hook. Parses the turn's transcript JSONL to enumerate files edited by Write/Edit/MultiEdit/NotebookEdit, filters through the ignore set, and pairs each with its owning CLAUDE.md via directory walk-up. Only useful when the stop hook is active.
+**`intent-layer-list.sh`** (parked) — Helper for the stop hook; only useful when the stop hook is active.
 
 ## Usage Patterns
 

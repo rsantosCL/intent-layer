@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Claude Code plugin that ships tooling for creating and maintaining CLAUDE.md intent nodes. Four components: a skill (create/update workflows), enforcement hooks (write-time rule injection, post-turn staleness detection), a standalone CLI validator, and slash commands. This repo is the automation/tooling layer — the intent layer methodology lives in `skills/intent-layer/references/intent-layer-methodology.md`.
+Claude Code plugin that ships tooling for creating and maintaining CLAUDE.md intent nodes. Four components: a skill (create/update workflows), enforcement hooks (write-time rule injection, post-edit validation), a standalone CLI validator, and slash commands. This repo is the automation/tooling layer — the intent layer methodology lives in `skills/intent-layer/references/intent-layer-methodology.md`.
 
 ## Entry Points & Contracts
 
@@ -10,7 +10,7 @@ Claude Code plugin that ships tooling for creating and maintaining CLAUDE.md int
 
 **Slash commands:** `:create`, `:update`, `:validate`, `:intent-layer` (auto-detect). Commands in `commands/` are thin dispatchers — each just tells Claude to invoke the skill in a specific mode.
 
-**CLI validator:** `bin/validate-intent-layer` is Python 3.9+ (no extension in the filename), zero third-party deps. `./install.sh` symlinks it to `~/.local/bin/`. See `docs/validate-intent-layer.md` for full design — checks structure, naming, token caps, downlink integrity, and orphan detection.
+**CLI validator:** `bin/validate-intent-layer` is Python 3.9+ (no extension in the filename), zero third-party deps. `./install.sh` symlinks it to `~/.local/bin/` and pre-grants `Bash(python3 */validate-intent-layer*)` in `~/.claude/settings.json` so the `:validate` command runs without a permission prompt. See `docs/validate-intent-layer.md` for full design — checks structure, naming, token caps, downlink integrity, and orphan detection.
 
 **Git hooks:** `.gitconfig` sets `core.hooksPath = .git-hooks`. Clones must run `git config --local include.path ../.gitconfig` to activate. `.git-hooks/pre-commit` lints staged files: shellcheck --shell=sh for `install.sh` (strict POSIX), shellcheck --shell=bash + bash -n for all other `.sh`, ruff for `bin/*`, jq for `.json`, rumdl for `.md`. `.shellcheckrc` defaults to bash; the pre-commit hook overrides to sh for `install.sh`. `.rumdl.toml` disables MD013 (long lines are intentional) and MD053 (downlink definitions aren't referenced inline); configures MD041 to recognize `description:` frontmatter in command files.
 
@@ -18,7 +18,7 @@ Claude Code plugin that ships tooling for creating and maintaining CLAUDE.md int
 
 ## Anti-patterns
 
-- **Don't edit `offload-naming.json` without checking all consumers.** Hooks (`hooks/intent-layer-preload.sh`, `hooks/intent-layer-list.sh`), the validator (`bin/validate-intent-layer`), and the preload hook's blocklist check all parse it independently. A schema change breaks three things silently.
+- **Don't edit `offload-naming.json` without checking all consumers.** Active hooks (`hooks/intent-layer-preload.sh`, `hooks/intent-layer-validate.sh`) and the validator (`bin/validate-intent-layer`) all parse it independently. A schema change breaks three things silently.
 - **Don't confuse `plugin.json` with `marketplace.json`.** `plugin.json` wires hooks and is the runtime config. `marketplace.json` is the marketplace listing metadata — it doesn't affect behavior.
 
 ## Downlinks
