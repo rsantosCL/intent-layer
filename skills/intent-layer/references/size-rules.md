@@ -30,7 +30,13 @@ For very large directories (>50k source tokens), apply the test per sub-director
 
 ## Per-node cap
 
-Every node stays under ~1,000 tokens. Aim for 300–500 — shorter is better. Over the cap → offload to an offload file (below), downlinked from the node with a one-line note on when to read it.
+Every node stays under ~1,000 tokens. Aim for 300–500 — shorter is better.
+
+When a node is over the cap, in order:
+
+1. **Compact losslessly.** Cut words that add no signal — filler, restatement, hedging. Never cut a contract, invariant, anti-pattern, or entry-point description.
+2. **Offload.** When further compaction would lose signal, stop compacting and move the lower-priority detail to an offload file (below), downlinked from the node with a one-line note on when to read it.
+3. **Ask.** If unsure whether something is signal worth keeping, ask the user instead of deciding silently.
 
 **Root-node exception:** the project root node may go up to ~2,000 tokens. It loads in every session, LCA placement funnels shared facts into it, and offloading a project-wide invariant risks it never being loaded. The higher cap is a ceiling, not a target — aim for under 1,000, and apply the same offload discipline beyond that.
 
