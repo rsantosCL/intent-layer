@@ -71,12 +71,29 @@ def _tokens(path):
     return chars * 10 // 35
 
 
+def _is_project_root(target):
+    # ROOT_CAP applies only to the true project root, not any scan root — the
+    # validate hook runs from the edited node's own directory, which must not
+    # inflate that node's cap. Walk up to the git root (or filesystem root)
+    # looking for an ancestor node; finding one means target is a child node.
+    if (target / ".git").exists():
+        return True
+    cur = target.parent
+    while True:
+        if (cur / "CLAUDE.md").exists():
+            return False
+        if (cur / ".git").exists() or cur.parent == cur:
+            return True
+        cur = cur.parent
+
+
 # --- validator ---------------------------------------------------------------
 
 
 class Validator:
     def __init__(self, target, output_format, use_colors):
         self.target = pathlib.Path(target).resolve()
+        self.is_project_root = _is_project_root(self.target)
         self.fmt = output_format
         self.c = COLORS if use_colors else NO_COLORS
         self.errors = 0
@@ -106,7 +123,11 @@ class Validator:
         rel = str(file.relative_to(self.target))
         basename = file.name
         tok = _tokens(file)
-        cap = ROOT_CAP if is_claude and directory == self.target else NODE_CAP
+        cap = (
+            ROOT_CAP
+            if is_claude and directory == self.target and self.is_project_root
+            else NODE_CAP
+        )
         token_pct = tok * 100 // cap
 
         # Phase 1: collect issues
