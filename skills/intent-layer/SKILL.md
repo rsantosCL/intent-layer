@@ -65,14 +65,26 @@ The naming rules and blocklist are defined once in `references/offload-naming.js
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"<path-to-plugin>/hooks/intent-layer-validate.sh\"",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   }
 }
 ```
 
-The hook script silently exits if the target file isn't a `CLAUDE.md` or offload file, or if the rule files are missing — so it's safe to install even in repos where this skill isn't actively used.
+Both hook scripts silently exit if the target file isn't a `CLAUDE.md` or offload file, or if the rule files are missing — so they're safe to install even in repos where this skill isn't actively used.
 
-Skip this step if the repo already has the entry. Verify with `grep intent-layer-preload .claude/settings.json`.
+Skip this step if the repo already has the entries. Verify with `grep intent-layer-preload .claude/settings.json`.
 
 ---
 

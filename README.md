@@ -16,14 +16,16 @@ Once installed, the skill and hooks are active in every project automatically �
 
 | Command | What it does |
 |---|---|
-| `/intent-layer:intent-layer` | Auto-detect: create from scratch or sync after changes |
+| `/intent-layer:intent-layer` (plugin) · `/intent-layer` (direct) | Auto-detect: create from scratch or sync after changes |
 | `/intent-layer:create` | Build the intent layer from scratch (leaf-first) |
 | `/intent-layer:update` | Sync nodes after a branch, PR, or staged diff |
 | `/intent-layer:validate` | Validate all nodes and offload files, report issues |
 
+The skill invocation syntax differs by install method: when installed as a plugin the skill is namespaced as `/intent-layer:intent-layer`; when the files are copied directly into a project's `.claude/skills/`, invoke the skill as `/intent-layer`.
+
 ### How auto-detect works
 
-Invoking `/intent-layer:intent-layer` reads the context — existing nodes? recent diff? — and decides whether to run Create or Update mode. The explicit `:create` and `:update` commands are preferred when you already know which mode you need.
+The skill reads the context — existing nodes? recent diff? — and decides whether to run Create or Update mode. The explicit `:create` and `:update` commands are preferred when you already know which mode you need.
 
 ## Enforcement hooks
 

@@ -22,16 +22,18 @@ You can substitute other directories if needed — the key is to have one small,
 
 For each test directory, spawn two agents in parallel — one with-skill, one without. Tell both to output CLAUDE.md content directly in their response (not write to disk) to avoid permission issues with subagents.
 
+Fill in `<skill-path>` with the absolute path to `skills/intent-layer/SKILL.md` in your checkout of this repo, and `<project-dir>` with the absolute path to the project you're evaluating against.
+
 ### With-skill agent prompt template
 
 ```text
 You are running an evaluation of a Claude Code skill. Execute the task and include ALL output directly in your final response message.
 
 ## Skill to use
-Read `/Users/rsantos/.dotfiles/claude/skills/intent-layer/SKILL.md` FIRST, then follow it precisely. Do NOT follow any other skill. Do NOT run permission scans or transcript scans.
+Read `<skill-path>` FIRST, then follow it precisely. Do NOT follow any other skill. Do NOT run permission scans or transcript scans.
 
 ## Task
-[Create CLAUDE.md intent layer nodes for <directory> in /Users/rsantos/sites/ycharts.]
+[Create CLAUDE.md intent layer nodes for <directory> in <project-dir>.]
 
 ## IMPORTANT: Scope your reading
 Do NOT read every file. Focus on structurally significant files (entry points, core logic, config, public interfaces). Skip test files, migrations, fixtures. Use line counts to prioritize.
@@ -53,7 +55,7 @@ SUMMARY:
 Include full content for every CLAUDE.md you would create.
 
 ## Working directory
-/Users/rsantos/sites/ycharts
+<project-dir>
 ```
 
 ### Without-skill (baseline) agent prompt template
@@ -73,7 +75,7 @@ Do NOT read every file. Focus on structurally significant files. Skip test files
 [Same format as above.]
 
 ## Working directory
-/Users/rsantos/sites/ycharts
+<project-dir>
 ```
 
 ## What to Check (Assertions)
@@ -127,10 +129,10 @@ If the baseline consistently beats the skill on structure or doc discovery, the 
 
 ## Workspace Layout
 
-Results from previous iterations are stored at:
+Keep eval results in a directory outside the repo (so they don't pollute git history). Suggested structure:
 
 ```text
-~/.dotfiles/claude/skills/intent-layer-workspace/
+<workspace-dir>/
 ├── iteration-1/
 │   ├── eval-hypotheticals-create/
 │   │   ├── with_skill/

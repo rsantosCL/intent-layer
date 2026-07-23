@@ -8,7 +8,7 @@ Claude Code plugin that ships tooling for creating and maintaining CLAUDE.md int
 
 **Plugin install:** `/plugin marketplace add rsantosCL/intent-layer` — hooks activate automatically via `.claude-plugin/plugin.json`. Non-plugin install requires manually adding hook entries to each project's `.claude/settings.json` (both paths documented in `README.md`).
 
-**Slash commands:** `:create`, `:update`, `:validate`, `:intent-layer` (auto-detect). Commands in `commands/` are thin dispatchers — each just tells Claude to invoke the skill in a specific mode.
+**Slash commands:** `:create`, `:update`, `:validate`. Commands in `commands/` are thin dispatchers — each just tells Claude to invoke the skill in a specific mode. The auto-detect entry point is the skill itself: `/intent-layer:intent-layer` when installed as a plugin, `/intent-layer` when copied directly into a project.
 
 **CLI validator:** `bin/validate-intent-layer` is Python 3.9+ (no extension in the filename), zero third-party deps. `./install.sh` symlinks it to `~/.local/bin/` and pre-grants `Bash(python3 */validate-intent-layer*)` in `~/.claude/settings.json` so the `:validate` command runs without a permission prompt. See `docs/validate-intent-layer.md` for full design — checks structure, naming, token caps, downlink integrity, and orphan detection. Token caps: `NODE_CAP` (1,000) for most nodes, `ROOT_CAP` (2,000) for the project root. The root is identified by `_is_project_root()` — scan target contains `.git`, or no ancestor directory up to the git/filesystem root has a `CLAUDE.md`. The post-edit hook validates from the edited node's own directory, so this detection prevents a child node from inheriting the root cap.
 
