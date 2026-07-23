@@ -5,7 +5,7 @@ description: Validate the intent layer (CLAUDE.md nodes and offload files) under
 Run the intent layer validator with JSON output:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/bin/validate-intent-layer" --json .
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/bin/validate-intent-layer" --json .
 ```
 
 Parse the JSON output and report:

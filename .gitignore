@@ -8,5 +8,8 @@
 .idea/
 .vscode/
 
-# Claude Code
-.claude/
+# Claude Code — track shared settings and the skill symlink, ignore the rest
+.claude/*
+!.claude/settings.json
+!.claude/skills/intent-layer
+!.claude/commands/intent-layer

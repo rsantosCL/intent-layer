@@ -1,0 +1,31 @@
+{
+  "enabledPlugins": {
+    "intent-layer@intent-layer": false
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/hooks/intent-layer-preload.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/hooks/intent-layer-validate.sh\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
