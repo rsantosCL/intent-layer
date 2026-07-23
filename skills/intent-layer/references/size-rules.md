@@ -32,6 +32,8 @@ For very large directories (>50k source tokens), apply the test per sub-director
 
 Every node stays under ~1,000 tokens. Aim for 300–500 — shorter is better. Over the cap → offload to an offload file (below), downlinked from the node with a one-line note on when to read it.
 
+**Root-node exception:** the project root node may go up to ~2,000 tokens. It loads in every session, LCA placement funnels shared facts into it, and offloading a project-wide invariant risks it never being loaded. The higher cap is a ceiling, not a target — aim for under 1,000, and apply the same offload discipline beyond that.
+
 ## Offload files
 
 - **No size cap.**

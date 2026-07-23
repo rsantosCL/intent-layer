@@ -31,7 +31,7 @@ Read `references/non-negotiable-rules.md` before any intent-layer work. Terminol
 
 ## Size Rules
 
-Read `references/size-rules.md` for the three hard reasons that gate node creation, the per-node cap (~1,000 tokens), and the offload-file conventions. These are limits, not aspirations.
+Read `references/size-rules.md` for the three hard reasons that gate node creation, the per-node cap (~1,000 tokens; ~2,000 for the root node), and the offload-file conventions. These are limits, not aspirations.
 
 ---
 

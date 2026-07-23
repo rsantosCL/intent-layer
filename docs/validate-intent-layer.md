@@ -60,7 +60,7 @@ Each issue object: `{"level":"error"|"warn","message":"…"}`. Both machine mode
 
 ### Per-file (nodes only)
 
-- **Token cap** (error if >1000, warning if ≥`TOKEN_WARN_PCT`% of 1,000) — token count is estimated as `byte_count / 3.5`. `TOKEN_WARN_PCT` (default 90, i.e. ≥900 tokens) is a top-level constant that also drives the gradient red threshold, so both stay in sync. The 1,000-token hard cap and 3.5 ratio for English prose come from `skills/intent-layer/references/size-rules.md`. Offload files are uncapped.
+- **Token cap** (error if over the cap, warning if ≥`TOKEN_WARN_PCT`% of it) — token count is estimated as `byte_count / 3.5`. The cap is `NODE_CAP` (1,000) for every node except the scan root's own `CLAUDE.md`, which gets `ROOT_CAP` (2,000) — the root loads in every session and LCA placement funnels shared facts into it. Note the root is detected as *the directory the validator was pointed at*, so running from a subdirectory grants that subdirectory's node the root cap. `TOKEN_WARN_PCT` (default 90) is a top-level constant that also drives the gradient red threshold, so both stay in sync. Both caps and the 3.5 ratio for English prose come from `skills/intent-layer/references/size-rules.md`. Offload files are uncapped.
 - **AGENTS.md coexistence** (error) — checked only at the project root. A root `CLAUDE.md` and `AGENTS.md` must not coexist; this rule does not apply to subdirectories.
 
 ### Per-file (offload files only)

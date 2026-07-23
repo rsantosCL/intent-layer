@@ -38,6 +38,8 @@ def _in_blocklisted_dir(path: pathlib.Path) -> bool:
     return any(part in BLOCKLISTED_DIRS for part in path.parts)
 
 
+NODE_CAP = 1000
+ROOT_CAP = 2000  # scan root's CLAUDE.md — LCA placement funnels shared facts into it
 TOKEN_WARN_PCT = 90
 MD_ICON = "●"
 WARN_ICON = "⚠"
@@ -104,7 +106,8 @@ class Validator:
         rel = str(file.relative_to(self.target))
         basename = file.name
         tok = _tokens(file)
-        token_pct = tok * 100 // 1000
+        cap = ROOT_CAP if is_claude and directory == self.target else NODE_CAP
+        token_pct = tok * 100 // cap
 
         # Phase 1: collect issues
         issues = []
@@ -121,16 +124,16 @@ class Validator:
             if directory == self.target and (directory / "AGENTS.md").exists():
                 self.errors += 1
                 issues.append(("error", "AGENTS.md coexists at project root"))
-            if tok > 1000:
+            if tok > cap:
                 self.errors += 1
-                issues.append(("error", f"~{tok} tokens — exceeds 1,000 token cap"))
+                issues.append(("error", f"~{tok} tokens — exceeds {cap:,} token cap"))
             elif token_pct >= TOKEN_WARN_PCT:
                 self.warnings += 1
                 issues.append(
                     (
                         "warn",
                         f"~{tok} tokens — exceeds {TOKEN_WARN_PCT}%"
-                        " of the 1,000 token cap",
+                        f" of the {cap:,} token cap",
                     )
                 )
         else:
@@ -247,7 +250,7 @@ class Validator:
         directory = data["directory"]
 
         token_color = ""
-        if is_claude and tok > 1000:
+        if is_claude and data["token_pct"] > 100:
             token_color = c["RED"]
 
         if is_claude:
