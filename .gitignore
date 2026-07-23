@@ -11,5 +11,7 @@
 # Claude Code — track shared settings and the skill symlink, ignore the rest
 .claude/*
 !.claude/settings.json
+!.claude/skills/
 !.claude/skills/intent-layer
+!.claude/commands/
 !.claude/commands/intent-layer
