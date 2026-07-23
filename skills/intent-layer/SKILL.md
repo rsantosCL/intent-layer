@@ -184,7 +184,11 @@ Parent CLAUDE.md files tell the agent: "here's the big picture, here's where to 
 
 Include downlinks to child nodes and to offload files (the latter for overflow detail you couldn't fit). Existing docs from Step 0 can be pulled in by promoting them to offload files (restructure to node format, rename to ALL-CAPS `TOPIC.md`); otherwise leave them as prose references, not downlinks.
 
-### Step 6: Report to user
+### Step 6: Sync the Intent Layer navigation block in the root CLAUDE.md
+
+Read `references/root-intent-layer-block.md` and ensure the root node's `## Usage Patterns` section contains the `### Intent Layer Navigation` subsection exactly as defined there — insert it if missing (creating `## Usage Patterns` before `## Downlinks` if needed), replace it if the existing text differs. Verbatim only — never paraphrase.
+
+### Step 7: Report to user
 
 List all created files with their approximate token sizes. For each directory you _considered but skipped_, briefly explain why (below threshold, covered by ancestor, etc.). Ask for review and feedback before considering the work done.
 
@@ -237,7 +241,11 @@ Update the most specific (deepest) affected node first. Then check if the change
 
 Trimming prose to fit is fine when the removed words added no signal. Trimming a contract, invariant, anti-pattern, or entry-point description is never acceptable — that knowledge must go somewhere, even if the node cannot hold it directly.
 
-### Step 6: Report changes
+### Step 6: Sync the navigation block if the root was touched
+
+If the root `CLAUDE.md` was updated during this run, apply Create Mode Step 6. Otherwise skip.
+
+### Step 7: Report changes
 
 Tell the user which nodes were updated and briefly why. For any node you skipped, explain why it didn't need updating.
 
