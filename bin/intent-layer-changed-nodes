@@ -1,0 +1,164 @@
+#!/usr/bin/python3
+# Resolves changed files (vs. a base ref) to their owning intent-layer node.
+#
+# Covered-subtree rule: root never owns a file by walk-up (every path walks up to it,
+# which would match every PR). Root is in scope only when the diff touches CLAUDE.md
+# or a root-level offload file directly.
+#
+# Usage: intent-layer-changed-nodes --base <ref> [--json]
+# Output: "<changed file> -> <owning CLAUDE.md>" per covered file (repo-relative paths).
+# Empty output means nothing in the diff is covered yet.
+
+import argparse
+import json
+import pathlib
+import re
+import subprocess
+import sys
+
+_NAMING_JSON = (
+    pathlib.Path(__file__).resolve().parent.parent
+    / "skills/intent-layer/references/offload-naming.json"
+)
+
+
+def _die(message, code=1):
+    print(f"intent-layer-changed-nodes: {message}", file=sys.stderr)
+    sys.exit(code)
+
+
+def _load_naming():
+    try:
+        data = json.loads(_NAMING_JSON.read_text())
+        return (
+            re.compile(data["offload_name_regex"]),
+            frozenset(data["blocklisted"]),
+            frozenset(data.get("blocklisted_dirs", [])),
+        )
+    except (OSError, KeyError, re.error) as exc:
+        _die(f"cannot load {_NAMING_JSON}: {exc}")
+
+
+OFFLOAD_NAME_RE, BLOCKLISTED, BLOCKLISTED_DIRS = _load_naming()
+
+
+def _in_blocklisted_dir(rel_path):
+    return any(part in BLOCKLISTED_DIRS for part in pathlib.PurePosixPath(rel_path).parts)
+
+
+def _is_generic_doc(rel_path):
+    # README.md, TODO.md, … — never intent-layer files.
+    return pathlib.PurePosixPath(rel_path).name in BLOCKLISTED
+
+
+def _is_offload(rel_path):
+    name = pathlib.PurePosixPath(rel_path).name
+    return name != "CLAUDE.md" and bool(OFFLOAD_NAME_RE.match(name))
+
+
+DOWNLINK_RE = re.compile(r"^\[[^\]]+\]:\s*(\S+)")
+
+
+def _downlink_targets(node_path):
+    # Downlink targets, resolved against the node's directory.
+    targets = set()
+    try:
+        text = node_path.read_text(errors="replace")
+    except OSError:
+        return targets
+    in_downlinks = False
+    for line in text.splitlines():
+        if line.startswith("## Downlinks"):
+            in_downlinks = True
+            continue
+        if in_downlinks:
+            if line.startswith("## "):
+                break
+            match = DOWNLINK_RE.match(line)
+            if match:
+                targets.add((node_path.parent / match.group(1)).resolve())
+    return targets
+
+
+def _git_changed_files(repo_root, base_ref):
+    # --no-renames: git otherwise reports only a rename's destination, hiding the source
+    # from its owning node — the case that node most needs reviewing for.
+    result = subprocess.run(
+        ["git", "diff", "--no-renames", "--name-only", f"{base_ref}...HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        # Usually an unknown base ref, or a shallow clone with no merge-base.
+        _die(f"git diff {base_ref}...HEAD failed: {result.stderr.strip()}")
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def _find_owning_node(repo_root, rel_path, root_claude):
+    # Walk up for a CLAUDE.md; discard a match at repo root — root only owns a file
+    # directly (see resolve()).
+    for directory in (repo_root / rel_path).parents:
+        candidate = directory / "CLAUDE.md"
+        if candidate.is_file() and candidate.resolve() != root_claude:
+            return candidate.resolve()
+        if directory == repo_root:
+            break
+    return None
+
+
+def resolve(repo_root, base_ref):
+    repo_root = pathlib.Path(repo_root).resolve()
+    root_claude = (repo_root / "CLAUDE.md").resolve()
+    changed = _git_changed_files(repo_root, base_ref)
+
+    pairs = []
+    for rel_path in changed:
+        if _in_blocklisted_dir(rel_path) or _is_generic_doc(rel_path):
+            continue
+
+        abs_path = (repo_root / rel_path).resolve()
+        if abs_path == root_claude:
+            # Root node edited directly — in scope for itself.
+            pairs.append((rel_path, "CLAUDE.md"))
+            continue
+
+        # Offloads resolve like any other file: editing one can leave its node inconsistent.
+        owner = _find_owning_node(repo_root, rel_path, root_claude)
+        if owner is not None:
+            pairs.append((rel_path, str(owner.relative_to(repo_root))))
+        elif _is_offload(rel_path) and abs_path in _downlink_targets(root_claude):
+            # Root downlinks it, so it's root's concern; unlinked ALL-CAPS docs stay out.
+            pairs.append((rel_path, "CLAUDE.md"))
+
+    return pairs
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="intent-layer-changed-nodes",
+        description="Resolve changed files to their owning intent-layer node.",
+    )
+    parser.add_argument("--base", metavar="<ref>", required=True, help="ref to diff against")
+    parser.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    args = parser.parse_args()
+
+    toplevel = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    if toplevel.returncode != 0:
+        _die(f"not inside a git repository: {toplevel.stderr.strip()}")
+
+    pairs = resolve(toplevel.stdout.strip(), args.base)
+
+    if args.json:
+        print(json.dumps([{"file": f, "node": n} for f, n in pairs]))
+    else:
+        for changed_file, node in pairs:
+            print(f"{changed_file} -> {node}")
+
+
+if __name__ == "__main__":
+    main()
