@@ -30,6 +30,7 @@ MANIFEST=(
     "skills/intent-layer/references/root-intent-layer-block.md|skills/intent-layer/references/root-intent-layer-block.md"
     "skills/intent-layer/references/size-rules.md|skills/intent-layer/references/size-rules.md"
     "skills/intent-layer/references/testing-guide.md|skills/intent-layer/references/testing-guide.md"
+    "bin/intent-layer-changed-nodes|bin/intent-layer-changed-nodes"
     "bin/validate-intent-layer|bin/validate-intent-layer"
     "hooks/intent-layer-preload.sh|hooks/intent-layer-preload.sh"
     "hooks/intent-layer-validate.sh|hooks/intent-layer-validate.sh"
@@ -46,7 +47,7 @@ PARKED=(
 )
 
 # Destinations that must land executable. Some copy paths drop the bit.
-EXECUTABLES="bin/validate-intent-layer hooks/intent-layer-preload.sh hooks/intent-layer-validate.sh hooks/intent-layer-stop.sh hooks/intent-layer-list.sh"
+EXECUTABLES="bin/intent-layer-changed-nodes bin/validate-intent-layer hooks/intent-layer-preload.sh hooks/intent-layer-validate.sh hooks/intent-layer-stop.sh hooks/intent-layer-list.sh"
 
 # Directories under .claude/ owned wholly by this plugin: safe to wipe before a
 # copy, which is how upstream deletions propagate. Everything else under
