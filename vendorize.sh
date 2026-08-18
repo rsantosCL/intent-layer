@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Vendor this plugin into a consuming repository that can't install it from the
-# marketplace. Copies an explicit file manifest into <repo>/.claude/, merges the
-# hook entries into <repo>/.claude/settings.json, and records a version stamp so
-# the next sync can tell an old vendored copy from a local edit.
+# marketplace. Copies an explicit file manifest into <repo>/.claude/, wires the
+# hooks in settings.json (shared) and disables the marketplace plugin in
+# settings.local.json (personal), and records a version stamp so the next sync
+# can tell an old vendored copy from a local edit.
 #
 # Usage: ./vendorize.sh [--dry-run] [--force] [--with-parked] <path-to-repo>
 #        ./vendorize.sh --uninstall [--dry-run] <path-to-repo>
@@ -123,6 +124,7 @@ TARGET="$(cd "$TARGET" && pwd)"
 
 DEST_ROOT="$TARGET/.claude"
 SETTINGS="$DEST_ROOT/settings.json"
+LOCAL_SETTINGS="$DEST_ROOT/settings.local.json"
 STAMP="$DEST_ROOT/.intent-layer-vendor.json"
 
 FILES=("${MANIFEST[@]}")
@@ -134,12 +136,21 @@ fi
 
 edit_settings() {
     # $1: install | uninstall | dry-install | dry-uninstall
-    python3 - "$SETTINGS" "$1" "$PLUGIN_KEY" <<'PYEOF'
+    #
+    # Two files, split by who the setting is for. settings.json gets the hook
+    # wiring and the validator permission — facts about the repo that every
+    # contributor needs, so they belong in the shared, committed file.
+    # settings.local.json gets the plugin disable, which matters only to
+    # someone who ALSO has the marketplace plugin installed; that is a personal
+    # collision, not a property of the repo.
+    python3 - "$SETTINGS" "$LOCAL_SETTINGS" "$1" "$PLUGIN_KEY" <<'PYEOF'
 import json
 import pathlib
 import sys
 
-path, mode, plugin_key = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+shared_path = pathlib.Path(sys.argv[1])
+local_path = pathlib.Path(sys.argv[2])
+mode, plugin_key = sys.argv[3], sys.argv[4]
 dry = mode.startswith("dry-")
 uninstall = mode.endswith("uninstall")
 HOOKS = [
@@ -148,15 +159,35 @@ HOOKS = [
 ]
 RULE = "Bash(python3 */validate-intent-layer*)"
 
-if path.exists():
+
+def load(path):
+    if not path.exists():
+        return {}
     raw = path.read_text().strip()
     try:
-        data = json.loads(raw) if raw else {}
+        return json.loads(raw) if raw else {}
     except json.JSONDecodeError as exc:
         sys.exit(f"vendorize: {path} is not valid JSON ({exc}); fix it and re-run")
-else:
-    data = {}
 
+
+def save(path, data, changes):
+    for c in changes:
+        print(f"  {path.name}: {c}")
+    if not changes:
+        print(f"  {path.name}: already correct")
+        return
+    if dry:
+        return
+    # An uninstall that empties a file we created leaves no litter behind.
+    if not data and uninstall:
+        path.unlink(missing_ok=True)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n")
+
+
+# --- shared: hook wiring + validator permission ------------------------------
+data = load(shared_path)
 changes = []
 hooks = data.setdefault("hooks", {})
 
@@ -189,17 +220,6 @@ for event, script, timeout in HOOKS:
         )
         changes.append(f"added {event} -> {script}")
 
-# A vendored repo must disable the marketplace plugin locally, or a developer
-# who also has it installed globally runs both copies: every hook fires twice.
-enabled = data.get("enabledPlugins", {})
-if uninstall:
-    if enabled.get(plugin_key) is False:
-        del enabled[plugin_key]
-        changes.append(f"removed enabledPlugins[{plugin_key}]")
-elif enabled.get(plugin_key) is not False:
-    data.setdefault("enabledPlugins", {})[plugin_key] = False
-    changes.append(f"set enabledPlugins[{plugin_key}] = false")
-
 allow = data.get("permissions", {}).get("allow", [])
 if uninstall:
     if RULE in allow:
@@ -215,22 +235,35 @@ else:
 for event, _, _ in HOOKS:
     if event in hooks and not hooks[event]:
         del hooks[event]
-for key in ("hooks", "enabledPlugins"):
-    if key in data and not data[key]:
-        del data[key]
+if "hooks" in data and not data["hooks"]:
+    del data["hooks"]
 if "permissions" in data:
     if not data["permissions"].get("allow", ["x"]):
         del data["permissions"]["allow"]
     if not data["permissions"]:
         del data["permissions"]
 
-for c in changes:
-    print(f"  settings.json: {c}")
-if not changes:
-    print("  settings.json: already correct")
-elif not dry:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n")
+save(shared_path, data, changes)
+
+# --- local: disable the marketplace plugin for this repo ---------------------
+# Without this, anyone who has the plugin installed globally runs both copies
+# here: every hook fires twice and two skills answer to the same name.
+data = load(local_path)
+changes = []
+enabled = data.get("enabledPlugins", {})
+
+if uninstall:
+    if enabled.get(plugin_key) is False:
+        del enabled[plugin_key]
+        changes.append(f"removed enabledPlugins[{plugin_key}]")
+elif enabled.get(plugin_key) is not False:
+    data.setdefault("enabledPlugins", {})[plugin_key] = False
+    changes.append(f"set enabledPlugins[{plugin_key}] = false")
+
+if "enabledPlugins" in data and not data["enabledPlugins"]:
+    del data["enabledPlugins"]
+
+save(local_path, data, changes)
 PYEOF
 }
 
@@ -457,10 +490,37 @@ else
 fi
 
 if grep -q 'intent-layer-preload.sh' "$SETTINGS" && grep -q 'intent-layer-validate.sh' "$SETTINGS"; then
-    printf '  ok    both hooks wired in settings.json\n'
+    printf '  ok    both hooks wired in settings.json (shared)\n'
 else
     printf '  FAIL  hooks missing from settings.json\n'
     rc=1
+fi
+
+if grep -qF "$PLUGIN_KEY" "$LOCAL_SETTINGS" 2> /dev/null; then
+    printf '  ok    marketplace plugin disabled in settings.local.json (personal)\n'
+else
+    printf '  FAIL  plugin not disabled in settings.local.json\n'
+    rc=1
+fi
+
+# The disable is a personal collision fix, so it belongs in an ignored file — and
+# the rule has to live in the repo. A global ~/.config/git/ignore entry makes
+# check-ignore pass on this machine while a teammate's clone happily commits the
+# file, so the ignore SOURCE is what matters, not the exit status.
+if git -C "$TARGET" rev-parse --git-dir > /dev/null 2>&1; then
+    ignore_src="$(git -C "$TARGET" check-ignore -v .claude/settings.local.json 2> /dev/null | cut -d: -f1)"
+    case "$ignore_src" in
+        "")
+            printf '  note  .claude/settings.local.json is not git-ignored — add it to .gitignore\n'
+            printf '        so the personal plugin disable is never committed\n'
+            ;;
+        /* | *.git/info/exclude)
+            printf '  note  .claude/settings.local.json is ignored only on this machine (by\n'
+            printf '        %s) — add it to the repo'\''s .gitignore so\n' "$ignore_src"
+            printf '        teammates cannot commit their own copy\n'
+            ;;
+        *) printf '  ok    .claude/settings.local.json ignored via %s\n' "$ignore_src" ;;
+    esac
 fi
 
 [ "$rc" -eq 0 ] || die "verification failed — see above"

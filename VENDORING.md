@@ -12,7 +12,7 @@ Read this before changing `vendorize.sh`, its manifest, or the layout it writes 
 
 **The stamp is the sync's memory.** It records the upstream commit, plugin version, and a SHA-256 per installed file. That is what lets the next run separate an outdated vendored copy (overwrite freely) from a file someone edited in place (stop and ask). A repo with no stamp — hand-copied, or vendored before stamps existed — classifies every differing file as diverged, which is the safe reading.
 
-**Vendoring disables the marketplace plugin in that repo** (`enabledPlugins["intent-layer@intent-layer"] = false`). Without it, a developer who also has the plugin installed globally runs two copies at once and every hook fires twice.
+**Settings are split by audience, and the split is deliberate.** `settings.json` gets the hook wiring and the validator permission — repo facts every contributor needs, so they're committed. `settings.local.json` gets `enabledPlugins["intent-layer@intent-layer"] = false`, because that only matters to someone who *also* has the marketplace plugin installed: without it they run both copies here, every hook fires twice, and two skills answer to the same name. That's a personal collision, not a property of the repo. The trade-off is that a teammate who later installs the plugin has to add the key to their own local file; the install prints a note if the repo doesn't git-ignore `settings.local.json`, since committing it would impose one person's setup on everyone.
 
 ## Usage Patterns
 
