@@ -43,7 +43,8 @@ OFFLOAD_NAME_RE, BLOCKLISTED, BLOCKLISTED_DIRS = _load_naming()
 
 
 def _in_blocklisted_dir(rel_path):
-    return any(part in BLOCKLISTED_DIRS for part in pathlib.PurePosixPath(rel_path).parts)
+    parts = pathlib.PurePosixPath(rel_path).parts
+    return any(part in BLOCKLISTED_DIRS for part in parts)
 
 
 def _is_generic_doc(rel_path):
@@ -123,12 +124,14 @@ def resolve(repo_root, base_ref):
             pairs.append((rel_path, "CLAUDE.md"))
             continue
 
-        # Offloads resolve like any other file: editing one can leave its node inconsistent.
+        # Offloads resolve like any other file: editing one can leave its node
+        # inconsistent.
         owner = _find_owning_node(repo_root, rel_path, root_claude)
         if owner is not None:
             pairs.append((rel_path, str(owner.relative_to(repo_root))))
         elif _is_offload(rel_path) and abs_path in _downlink_targets(root_claude):
-            # Root downlinks it, so it's root's concern; unlinked ALL-CAPS docs stay out.
+            # Root downlinks it, so it's root's concern; unlinked ALL-CAPS docs
+            # stay out.
             pairs.append((rel_path, "CLAUDE.md"))
 
     return pairs
@@ -139,7 +142,9 @@ def main():
         prog="intent-layer-changed-nodes",
         description="Resolve changed files to their owning intent-layer node.",
     )
-    parser.add_argument("--base", metavar="<ref>", required=True, help="ref to diff against")
+    parser.add_argument(
+        "--base", metavar="<ref>", required=True, help="ref to diff against"
+    )
     parser.add_argument("--json", action="store_true", help="emit JSON instead of text")
     args = parser.parse_args()
 
