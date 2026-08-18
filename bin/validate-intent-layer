@@ -113,7 +113,9 @@ class Validator:
 
     def check_node(self, file):
         file = pathlib.Path(file).resolve()
-        if file in self.visited:
+        # A symlink can resolve outside the scan root; that node belongs to
+        # another tree, and paths here are reported relative to self.target.
+        if not self._within_target(file) or file in self.visited:
             return
         self.visited.add(file)
         self.seen.add(file)
@@ -371,12 +373,12 @@ class Validator:
         # Check for unreferenced CLAUDE.md nodes
         for f in claude_files:
             f = pathlib.Path(f).resolve()
-            if f == self.target / "CLAUDE.md":
+            if not self._within_target(f) or f == self.target / "CLAUDE.md":
                 continue
             directory = f.parent
             ancestor = None
             cur = directory.parent
-            while str(cur).startswith(str(self.target)):
+            while cur.is_relative_to(self.target):
                 if (cur / "CLAUDE.md").exists():
                     ancestor = cur / "CLAUDE.md"
                     break
@@ -428,8 +430,9 @@ class Validator:
                 continue
             if not OFFLOAD_NAME_RE.match(md.name):
                 continue
-            if md.resolve() not in self.seen:
-                add_orphan(md.resolve(), "not downlinked from any node")
+            resolved = md.resolve()
+            if self._within_target(resolved) and resolved not in self.seen:
+                add_orphan(resolved, "not downlinked from any node")
 
         return orphan_map
 
