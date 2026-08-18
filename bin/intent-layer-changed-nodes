@@ -142,8 +142,10 @@ def resolve(repo_root, base_ref):
             continue
 
         if abs_path == root_claude:
-            # Root node edited directly — in scope for itself.
-            pairs.append((rel_path, "CLAUDE.md"))
+            # Edited root is in scope for itself; a deleted one is skipped like
+            # any deleted node — nothing left to review.
+            if root_claude.is_file():
+                pairs.append((rel_path, "CLAUDE.md"))
             continue
 
         # Offloads resolve like any other file: editing one can leave its node
