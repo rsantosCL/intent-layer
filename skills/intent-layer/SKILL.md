@@ -43,7 +43,7 @@ Use the template in `references/intent-node-structure.md` for every node and off
 
 ## Enforcement Hook
 
-This skill ships with a `PreToolUse` hook (`hooks/intent-layer-preload.sh`) that injects `references/non-negotiable-rules.md` + `references/size-rules.md` into context every time an agent is about to Write or Edit a node (`CLAUDE.md`) or an offload file (ALL-CAPS hyphenated `TOPIC.md`). Well-known generic ALL-CAPS docs (`README.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, etc.) are blocklisted.
+This skill ships with a `PreToolUse` hook (`hooks/intent-layer-preload.sh`) that injects `references/non-negotiable-rules.md` + `references/size-rules.md` + `references/intent-node-structure.md` into context every time an agent is about to Write or Edit a node (`CLAUDE.md`) or an offload file (ALL-CAPS hyphenated `TOPIC.md`). Well-known generic ALL-CAPS docs (`README.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, etc.) are blocklisted.
 
 The naming rules and blocklist are defined once in `references/offload-naming.json` and shared between this hook and `bin/validate-intent-layer`.
 

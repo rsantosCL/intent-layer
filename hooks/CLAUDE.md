@@ -6,7 +6,7 @@ Four hook scripts — two active, two parked — enforcing intent-layer rules at
 
 ## Entry Points & Contracts
 
-**`intent-layer-preload.sh`** (PreToolUse, Write|Edit) — Injects `non-negotiable-rules.md` + `size-rules.md` into agent context before any write to a CLAUDE.md or offload file. Silently exits (no output) for all other files — any stdout would block the agent's write.
+**`intent-layer-preload.sh`** (PreToolUse, Write|Edit) — Injects `non-negotiable-rules.md` + `size-rules.md` + `intent-node-structure.md` into agent context before any write to a CLAUDE.md or offload file. All three are injected as content, never referenced by path: a path only resolves in a clone, not in a vendored install where the refs sit under `.claude/`. Silently exits (no output) for all other files — any stdout would block the agent's write.
 
 **`intent-layer-validate.sh`** (PostToolUse, Write|Edit) — After any write to a CLAUDE.md or offload file, runs `bin/validate-intent-layer --json` on the owning node's directory and injects errors into context via `hookSpecificOutput.additionalContext`. Silently exits on pass, non-intent files, or when no CLAUDE.md is found in the ancestor chain. Runs the validator as a direct subprocess (not via the Bash tool), so it never triggers a permission prompt.
 
@@ -16,13 +16,11 @@ Four hook scripts — two active, two parked — enforcing intent-layer rules at
 
 ## Usage Patterns
 
-Both active hooks resolve `offload-naming.json` from `${CLAUDE_PLUGIN_ROOT}/skills/intent-layer/references/` (falling back to `$(dirname "$0")/..` for non-plugin installs). Changes to naming rules propagate automatically.
+Both active hooks resolve `offload-naming.json` from `${CLAUDE_PLUGIN_ROOT}/skills/intent-layer/references/` (falling back to `$(dirname "$0")/..` for non-plugin installs), so naming changes propagate automatically. They share one classifier: intent artifacts (CLAUDE.md + files matching `offload_name_regex`) are in scope, everything else is silently ignored.
 
-Preload and validate share the same file classifier: intent artifacts (CLAUDE.md + offload-named files matching `offload_name_regex`) are in scope; everything else is silently ignored. Both apply the same blocklisted-directory bypass via `_is_downlinked()`.
+**Directory blocklist exception:** `_is_downlinked()`, used by both, walks ancestor directories for a link definition (`]: relative/path`) in any `CLAUDE.md`. Files under `blocklisted_dirs` (`.venv/`, `node_modules/`, `docs/`) are skipped unless downlinked from an ancestor node, in which case they are treated as normal intent artifacts — so an offload deliberately placed under `docs/` and downlinked works.
 
-**Directory blocklist exception:** both active hooks use a `_is_downlinked()` helper that walks ancestor directories looking for a Markdown link definition (`]: relative/path`) in any `CLAUDE.md`. Files under `blocklisted_dirs` (e.g. `.venv/`, `node_modules/`, `docs/`) are skipped by default, but if `_is_downlinked` finds the file is explicitly downlinked from an ancestor node, the block is bypassed and the file is treated as a normal intent artifact. This means deliberately placing an offload file under `docs/` and downlinking it works correctly.
-
-**Validate hook walk-up:** `intent-layer-validate.sh` walks up from the edited file's directory to find the nearest ancestor containing a `CLAUDE.md` before running the validator. This ensures offload files placed under subdirectories (e.g. `docs/`) are validated against their true owning node rather than their immediate directory.
+**Validate hook walk-up:** validate runs from the nearest ancestor directory containing a `CLAUDE.md`, not the edited file's own directory, so offloads in subdirectories (e.g. `docs/`) validate against their true owning node.
 
 ## Anti-patterns
 

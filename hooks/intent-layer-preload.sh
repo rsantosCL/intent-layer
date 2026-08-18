@@ -51,9 +51,9 @@ fi
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname -- "$0")/.." && pwd)}"
 refs_dir="$plugin_root/skills/intent-layer/references"
 
-[[ -f "$refs_dir/non-negotiable-rules.md" && -f "$refs_dir/size-rules.md" ]] || exit 0
+[[ -f "$refs_dir/non-negotiable-rules.md" && -f "$refs_dir/size-rules.md" && -f "$refs_dir/intent-node-structure.md" ]] || exit 0
 
-rules=$(cat "$refs_dir/non-negotiable-rules.md" "$refs_dir/size-rules.md")
+rules=$(cat "$refs_dir/non-negotiable-rules.md" "$refs_dir/size-rules.md" "$refs_dir/intent-node-structure.md")
 
 jq -n \
   --arg content "$rules" \
@@ -62,7 +62,7 @@ jq -n \
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       additionalContext: (
-        "ENFORCED: about to Write/Edit " + $path + ". intent-layer rules MUST be followed. Operative rules follow.\n\nIf you are creating a new node/offload file or adding/removing sections in an existing one, you MUST also read skills/intent-layer/references/intent-node-structure.md for the required template before proceeding.\n\n---\n\n" + $content
+        "ENFORCED: about to Write/Edit " + $path + ". intent-layer rules MUST be followed. Operative rules and the required structure template follow.\n\n---\n\n" + $content
       )
     }
   }'

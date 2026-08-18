@@ -28,3 +28,7 @@ Link definitions for child nodes and offload files. The parenthesized title desc
 [subdir/CLAUDE.md]: subdir/CLAUDE.md (what it covers)
 [TOPIC.md]: TOPIC.md (when to read it, what it explains)
 ```
+
+## Offload files
+
+`## Purpose & Scope` says when to read the file and what it owns — never the parent's section names: those go stale on any parent restructure, and the validator only checks that downlink targets exist, not sections. Topic scoping also routes future overflow (`size-rules.md`).
