@@ -413,14 +413,14 @@ class Validator:
         for md in sorted(self.target.rglob("*.md")):
             if md.name == "CLAUDE.md":
                 continue
-            md_str = str(md)
-            if "/.git/" in md_str:
+            # Filters are scoped to the scan target: a repo that merely sits
+            # under ~/docs or ~/.claude must not have its own files skipped.
+            rel_path = md.relative_to(self.target)
+            if ".git" in rel_path.parts or ".claude" in rel_path.parts:
                 continue
-            if "/.claude/" in md_str:
+            if CLAUDE_MACHINERY_RE.search(f"/{rel_path}"):
                 continue
-            if CLAUDE_MACHINERY_RE.search(md_str):
-                continue
-            if _in_blocklisted_dir(md):
+            if _in_blocklisted_dir(rel_path):
                 continue
             if md.name in BLOCKLISTED:
                 continue
@@ -493,7 +493,8 @@ def main():
     claude_files = sorted(
         f
         for f in target_path.rglob("CLAUDE.md")
-        if "/.git/" not in str(f) and not _in_blocklisted_dir(f)
+        if ".git" not in f.relative_to(target_path).parts
+        and not _in_blocklisted_dir(f.relative_to(target_path))
     )
 
     if not claude_files:
