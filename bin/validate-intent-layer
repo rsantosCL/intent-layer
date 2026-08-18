@@ -78,13 +78,12 @@ def _is_project_root(target):
     # looking for an ancestor node; finding one means target is a child node.
     if (target / ".git").exists():
         return True
-    cur = target.parent
-    while True:
+    for cur in target.parents:
         if (cur / "CLAUDE.md").exists():
             return False
-        if (cur / ".git").exists() or cur.parent == cur:
+        if (cur / ".git").exists():
             return True
-        cur = cur.parent
+    return True
 
 
 # --- validator ---------------------------------------------------------------
@@ -326,15 +325,10 @@ class Validator:
         orphan_map = {}  # ancestor node file -> [(orphan_path, reason), ...]
 
         def find_ancestor(directory):
-            cur = directory
-            while True:
+            for cur in (directory, *directory.parents):
                 candidate = (cur / "CLAUDE.md").resolve()
                 if candidate in self.node_data:
                     return candidate
-                parent = cur.parent
-                if parent == cur:
-                    break
-                cur = parent
             root = (self.target / "CLAUDE.md").resolve()
             return root if root in self.node_data else None
 
@@ -372,15 +366,15 @@ class Validator:
             if not self._within_target(f) or f == self.target / "CLAUDE.md":
                 continue
             directory = f.parent
+            # .parents stops at the filesystem root; _within_target stops at
+            # the scan target, which is the outermost node that can own f.
             ancestor = None
-            cur = directory.parent
-            while self._within_target(cur):
+            for cur in directory.parents:
+                if not self._within_target(cur):
+                    break
                 if (cur / "CLAUDE.md").exists():
                     ancestor = cur / "CLAUDE.md"
                     break
-                if cur == self.target:
-                    break
-                cur = cur.parent
 
             if ancestor is None:
                 add_orphan(f, "no ancestor CLAUDE.md found")
