@@ -1,8 +1,9 @@
 #!/usr/bin/python3
-# Read bin-docs/validate-intent-layer.md before reading this file.
+# Read docs/validate-intent-layer.md before reading this file.
 # Validates intent layer nodes (CLAUDE.md) and offload files under a directory tree.
 # Usage: validate-intent-layer [--json|--jsonl] [directory]  (defaults to .)
 
+import argparse
 import json
 import pathlib
 import re
@@ -431,56 +432,37 @@ class Validator:
 
 
 def main():
-    output_format = "text"
-    target = "."
+    parser = argparse.ArgumentParser(
+        prog="validate-intent-layer",
+        description="Validates intent layer nodes (CLAUDE.md) and offload files"
+        " under a directory tree. With no format flag, prints a tree with colors"
+        " and a summary line. Exits 1 on any error, 0 on a clean pass.",
+    )
+    fmt = parser.add_mutually_exclusive_group()
+    fmt.add_argument(
+        "--json",
+        dest="fmt",
+        action="store_const",
+        const="json",
+        help="single JSON document emitted after all processing; use when you"
+        " need the full result at once (scripting, AI tool calls)",
+    )
+    fmt.add_argument(
+        "--jsonl",
+        dest="fmt",
+        action="store_const",
+        const="jsonl",
+        help="one JSON object per line, streamed as files are visited; use when"
+        " processing incrementally or piping into jq",
+    )
+    parser.add_argument(
+        "directory", nargs="?", default=".", help="directory to scan (default: .)"
+    )
+    parser.set_defaults(fmt="text")
+    args = parser.parse_args()
 
-    i = 0
-    args = sys.argv[1:]
-    while i < len(args):
-        arg = args[i]
-        if arg == "--help":
-            print("Usage: validate-intent-layer [--json/--jsonl] [directory]\n")
-            print(
-                "Validates intent layer nodes (CLAUDE.md) and offload files"
-                " under a directory tree."
-            )
-            print(
-                "Defaults to the current directory."
-                " Exits 1 on any error, 0 on clean pass.\n"
-            )
-            print("Flags:")
-            print(
-                "  (none)   Human-readable output with tree layout,"
-                " colors, and a summary line."
-            )
-            print(
-                "  --json   Machine-readable: single JSON document emitted"
-                " after all processing."
-            )
-            print(
-                "           Use when you need the full result at once"
-                " (scripting, AI tool calls)."
-            )
-            print(
-                "  --jsonl  Machine-readable: one JSON object per line,"
-                " streamed as files are visited."
-            )
-            print(
-                "           Use when processing output incrementally or piping into jq."
-            )
-            sys.exit(0)
-        elif arg == "--json":
-            output_format = "json"
-        elif arg == "--jsonl":
-            output_format = "jsonl"
-        elif arg.startswith("-"):
-            print(f"Unknown flag: {arg}", file=sys.stderr)
-            sys.exit(1)
-        else:
-            target = arg
-        i += 1
-
-    target_path = pathlib.Path(target).resolve()
+    output_format = args.fmt
+    target_path = pathlib.Path(args.directory).resolve()
     use_colors = output_format == "text" and sys.stdout.isatty()
     validator = Validator(str(target_path), output_format, use_colors)
 

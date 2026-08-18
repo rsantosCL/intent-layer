@@ -9,7 +9,9 @@ validate-intent-layer [--json|--jsonl] [directory]
 validate-intent-layer --help
 ```
 
-Defaults to the current directory. The path is resolved to an absolute path at startup so all internal comparisons are stable regardless of how the script was invoked. `--json` and `--jsonl` are mutually exclusive; omitting both produces human-readable text output. `--help` prints usage and flag descriptions then exits 0.
+Defaults to the current directory. The path is resolved to an absolute path at startup so all internal comparisons are stable regardless of how the script was invoked. `--json` and `--jsonl` are mutually exclusive; omitting both produces human-readable text output. `--help` (or `-h`) prints usage and flag descriptions then exits 0.
+
+Arguments are parsed with `argparse`, so usage errors — an unknown flag, or `--json` and `--jsonl` together — print to stderr and exit **2**, distinct from the exit 1 that means validation failed.
 
 ## Output
 
