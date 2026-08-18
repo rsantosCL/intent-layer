@@ -96,15 +96,31 @@ def _git_changed_files(repo_root, base_ref):
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
+def _ancestor_dirs(repo_root, abs_path):
+    # The file's directories, innermost first, stopping at the repo root.
+    for directory in abs_path.parents:
+        yield directory
+        if directory == repo_root:
+            return
+
+
+def _is_downlinked(repo_root, abs_path):
+    # Mirrors the hooks' _is_downlinked bypass: a file under a blocklisted
+    # directory is still an intent artifact when a node downlinks it.
+    return any(
+        (directory / "CLAUDE.md").is_file()
+        and abs_path in _downlink_targets(directory / "CLAUDE.md")
+        for directory in _ancestor_dirs(repo_root, abs_path)
+    )
+
+
 def _find_owning_node(repo_root, rel_path, root_claude):
     # Walk up for a CLAUDE.md; discard a match at repo root — root only owns a file
     # directly (see resolve()).
-    for directory in (repo_root / rel_path).parents:
+    for directory in _ancestor_dirs(repo_root, repo_root / rel_path):
         candidate = directory / "CLAUDE.md"
         if candidate.is_file() and candidate.resolve() != root_claude:
             return candidate.resolve()
-        if directory == repo_root:
-            break
     return None
 
 
@@ -115,10 +131,16 @@ def resolve(repo_root, base_ref):
 
     pairs = []
     for rel_path in changed:
-        if _in_blocklisted_dir(rel_path) or _is_generic_doc(rel_path):
+        if _is_generic_doc(rel_path):
             continue
 
         abs_path = (repo_root / rel_path).resolve()
+
+        # Blocklisted directories are skipped, but a downlink overrides that, so
+        # CI and the edit-time hooks agree on what counts as an intent artifact.
+        if _in_blocklisted_dir(rel_path) and not _is_downlinked(repo_root, abs_path):
+            continue
+
         if abs_path == root_claude:
             # Root node edited directly — in scope for itself.
             pairs.append((rel_path, "CLAUDE.md"))
