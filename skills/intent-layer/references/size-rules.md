@@ -35,14 +35,17 @@ Every node stays under ~1,000 tokens. Aim for 300–500 — shorter is better.
 When a node is over the cap, in order:
 
 1. **Compact losslessly.** Cut words that add no signal — filler, restatement, hedging. Never cut a contract, invariant, anti-pattern, or entry-point description.
-2. **Offload.** When further compaction would lose signal, stop compacting and move the lower-priority detail to an offload file (below), downlinked from the node with a one-line note on when to read it.
-3. **Ask.** If unsure whether something is signal worth keeping, ask the user instead of deciding silently.
+2. **Reuse an offload.** When further compaction would lose signal, move the overflow to whichever of the node's offloads its `## Purpose & Scope` covers.
+3. **Or add one.** If none covers it, prefer a new topic-specific offload over widening an existing scope — a vague `Purpose & Scope` breaks step 2's routing. Downlink it with a one-line note on when to read it. If unsure, ask.
+4. **Compact the offload too.** Uncapped is not licence to sprawl.
+
+**Verify every compaction.** List the pre-edit version's distinctive facts — names, values, paths, exceptions, thresholds — and confirm each survives in the node or an offload. Restore what's missing, compact elsewhere, repeat; when no lossless compaction remains, ask.
 
 **Root-node exception:** the project root node may go up to ~2,000 tokens. It loads in every session, LCA placement funnels shared facts into it, and offloading a project-wide invariant risks it never being loaded. The higher cap is a ceiling, not a target — aim for under 1,000, and apply the same offload discipline beyond that.
 
 ## Offload files
 
-- **No size cap.**
+- **No size cap** — but still compacted (step 4 above).
 - **Same structure as a node** (`intent-node-structure.md`).
 - **May downlink to other offload files or nodes, but never has its own offload files** — is uncapped, so overflow is not possible.
 - **Naming: ALL-CAPS, hyphen-separated, topic-specific.** Examples: `MODULE-DETAILS.md`, `LOAD-ORDER.md`, `MIGRATION-GUIDE.md`. Never `README.md`, `OVERVIEW.md`, `INDEX.md`, or other generic names — `README.md` is reserved for human-facing docs.
