@@ -47,44 +47,13 @@ This skill ships with a `PreToolUse` hook (`hooks/intent-layer-preload.sh`) that
 
 The naming rules and blocklist are defined once in `references/offload-naming.json` and shared between this hook and `bin/validate-intent-layer`.
 
-**If you installed this as a plugin**, hooks are already active — no per-project setup needed.
+**If this was installed from the marketplace**, hooks are already active in every repo — no per-project setup needed. A repo opts out by setting `"enabledPlugins": {"intent-layer@intent-layer": false}` in its `.claude/settings.json`.
 
-**Otherwise**, add the following to each project's `.claude/settings.json` (replace `<path-to-plugin>` with the absolute path to the cloned repo):
+**If this was vendored into the repo** (`.claude/skills/intent-layer/`), the hooks live in `.claude/hooks/` and are wired in `.claude/settings.json`. Never hand-edit that wiring or hand-copy these files: run `./vendorize.sh <path-to-repo>` from a clone of the upstream repo, which owns the file manifest, the settings merge, and the version stamp. Re-run it after every upstream pull.
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"<path-to-plugin>/hooks/intent-layer-preload.sh\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"<path-to-plugin>/hooks/intent-layer-validate.sh\"",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+Both hook scripts silently exit if the target file isn't a `CLAUDE.md` or offload file, or if the rule files are missing — so they're safe to have installed even in repos where this skill isn't actively used.
 
-Both hook scripts silently exit if the target file isn't a `CLAUDE.md` or offload file, or if the rule files are missing — so they're safe to install even in repos where this skill isn't actively used.
-
-Skip this step if the repo already has the entries. Verify with `grep intent-layer-preload .claude/settings.json`.
+Verify either path with `grep intent-layer-preload .claude/settings.json` (vendored) or `/plugin` (marketplace).
 
 ---
 

@@ -4,13 +4,53 @@ A Claude Code plugin that creates and maintains CLAUDE.md **intent nodes** acros
 
 Includes a skill, enforcement hooks, a slash-command validator, and an optional standalone CLI validator.
 
-## Install the plugin
+## Install
+
+Two supported paths. Pick one per machine; don't mix them in the same repo.
+
+### Option 1 — marketplace plugin (recommended)
 
 ```text
 /plugin marketplace add rsantosCL/intent-layer
 ```
 
-Once installed, the skill and hooks are active in every project automatically — no per-project setup needed.
+The skill and hooks are then active in **every** repo you open — no per-project setup. Enablement is stored in your settings, not in the plugin, so there is no way to ship it default-off.
+
+To switch it off for one repo, add to that repo's `.claude/settings.json`:
+
+```json
+{
+  "enabledPlugins": {
+    "intent-layer@intent-layer": false
+  }
+}
+```
+
+This repo does exactly that, so the working tree is what it enforces on itself.
+
+### Option 2 — clone
+
+For repos that must carry their own copy (no marketplace access, CI that runs the validator, a team that wants the skill checked in). Two scripts, two jobs:
+
+```sh
+git clone https://github.com/rsantosCL/intent-layer
+cd intent-layer
+
+./link-cli.sh                 # machine-level: symlink bin/* into ~/.local/bin
+./vendorize.sh ../my-repo     # repo-level: install skill + hooks + commands
+```
+
+`link-cli.sh` touches no repo — it only puts `validate-intent-layer` on your `PATH` for CI, pre-commit hooks, and shell use, and pre-grants the Bash permission the `:validate` command needs. It symlinks rather than copies, so a `git pull` here updates the tool everywhere. Undo with `./link-cli.sh --unlink`.
+
+`vendorize.sh` copies an explicit file manifest into `../my-repo/.claude/`, merges the two hook entries into that repo's `.claude/settings.json` without disturbing its own hooks, disables the marketplace plugin there (otherwise both copies fire), and writes `.claude/.intent-layer-vendor.json` recording the upstream commit and a checksum per file.
+
+```sh
+./vendorize.sh --dry-run ../my-repo   # report what would change
+./vendorize.sh ../my-repo             # sync — safe to re-run after every pull
+./vendorize.sh --uninstall ../my-repo # remove files, stamp, and settings entries
+```
+
+Re-runs use the stamp to tell an out-of-date copy (overwritten silently) from a file edited in place (flagged `!`, and the sync stops unless you pass `--force`). Commit the resulting `.claude/` changes in the consuming repo. See `VENDORING.md` for the ownership rules.
 
 ## Usage
 
@@ -21,7 +61,7 @@ Once installed, the skill and hooks are active in every project automatically �
 | `/intent-layer:update` | Sync nodes after a branch, PR, or staged diff |
 | `/intent-layer:validate` | Validate all nodes and offload files, report issues |
 
-The skill invocation syntax differs by install method: when installed as a plugin the skill is namespaced as `/intent-layer:intent-layer`; when the files are copied directly into a project's `.claude/skills/`, invoke the skill as `/intent-layer`.
+The skill invocation syntax differs by install method: as a marketplace plugin the skill is namespaced `/intent-layer:intent-layer`; vendored into a project's `.claude/skills/`, it's just `/intent-layer`.
 
 ### How auto-detect works
 
@@ -29,66 +69,25 @@ The skill reads the context — existing nodes? recent diff? — and decides whe
 
 ## Enforcement hooks
 
-The plugin registers two hooks automatically:
+Both install paths register the same two hooks — the plugin via `plugin.json`, a vendored install via the target repo's `.claude/settings.json`:
 
 - **PreToolUse (Write|Edit)** — injects `non-negotiable-rules.md` + `size-rules.md` into context before the agent writes any CLAUDE.md node or offload file.
 - **PostToolUse (Write|Edit)** — after any write to a CLAUDE.md or offload file, runs the validator and injects errors into context so they're fixed immediately.
 
-### Non-plugin install
+Both exit silently for every other file, so they cost nothing in repos where the intent layer isn't in use.
 
-If you cloned the repo instead of installing as a plugin, add to each project's `.claude/settings.json` (replace `<path-to-repo>` with the absolute path):
+## CLI validator
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"<path-to-repo>/hooks/intent-layer-preload.sh\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"<path-to-repo>/hooks/intent-layer-validate.sh\"",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-## Optional CLI install
-
-For use outside Claude Code — CI pipelines, pre-commit hooks, shell scripts:
-
-```sh
-git clone https://github.com/rsantosCL/intent-layer
-cd intent-layer
-./install.sh
-```
-
-This symlinks `bin/validate-intent-layer` to `~/.local/bin/validate-intent-layer` and pre-grants the Bash permission needed for the `:validate` command to run without a prompt. Ensure `~/.local/bin` is on your `PATH`.
+Once `./link-cli.sh` has run, the validator is on your `PATH` for use outside Claude Code — CI pipelines, pre-commit hooks, shell scripts:
 
 ```sh
 validate-intent-layer [--json|--jsonl] [directory]
 ```
 
-To uninstall:
+In a vendored repo it's also available without installing anything:
 
 ```sh
-./install.sh --uninstall
+python3 .claude/bin/validate-intent-layer --json .
 ```
 
 See `docs/validate-intent-layer.md` for full validator documentation.

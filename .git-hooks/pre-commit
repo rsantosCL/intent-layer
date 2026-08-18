@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Lint staged files before commit.
-# ShellCheck (sh):             POSIX scripts (install.sh)
+# ShellCheck (sh):             POSIX scripts (#!/bin/sh)
 # ShellCheck (bash) + bash -n: bash scripts (*.sh)
 # ruff:                        Python files (bin/*)
 # jq:                          JSON files (*.json)
@@ -21,9 +21,17 @@ md_files=()
 
 for f in "${files[@]}"; do
   case "$f" in
-    install.sh) sh_files+=("$f") ;;
     bin/*) python_files+=("$f") ;;
-    *.sh)  bash_files+=("$f") ;;
+    # Partition by shebang, not by filename: a POSIX script gets --shell=sh so
+    # bashisms can't creep in, and renaming a script can't silently downgrade
+    # its lint.
+    *.sh)
+      if head -n 1 "$f" | grep -q '^#!/bin/sh'; then
+        sh_files+=("$f")
+      else
+        bash_files+=("$f")
+      fi
+      ;;
     *.json) json_files+=("$f") ;;
     *.md)  md_files+=("$f") ;;
   esac
