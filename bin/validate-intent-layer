@@ -105,11 +105,7 @@ class Validator:
         self.json_orphans = []
 
     def _within_target(self, path):
-        try:
-            path.relative_to(self.target)
-            return True
-        except ValueError:
-            return False
+        return path.is_relative_to(self.target)
 
     def check_node(self, file):
         file = pathlib.Path(file).resolve()
@@ -378,7 +374,7 @@ class Validator:
             directory = f.parent
             ancestor = None
             cur = directory.parent
-            while cur.is_relative_to(self.target):
+            while self._within_target(cur):
                 if (cur / "CLAUDE.md").exists():
                     ancestor = cur / "CLAUDE.md"
                     break
