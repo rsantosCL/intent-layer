@@ -179,15 +179,18 @@ List all created files with their approximate token sizes. For each directory yo
 
 ### Step 1: Get the diff
 
+**Always pass `--no-renames`.** Git collapses a rename into its destination path only, so a file that moved *out* of a directory never appears in the diff — and the node that still documents it is never opened. Step 3's "a new entry point was added or removed" criterion cannot fire for renames without this flag. `--no-renames` splits each rename into a delete plus an add, so both paths resolve to their own nodes.
+
 ```bash
 # Current branch vs main/develop
-git diff develop...HEAD --name-only
+git diff --no-renames develop...HEAD --name-only
 
 # Staged changes
-git diff --cached --name-only
+git diff --no-renames --cached --name-only
 
-# Specific PR
+# Specific PR — gh has no --no-renames, and --name-only drops rename sources
 gh pr diff <PR-number> --name-only
+gh pr diff <PR-number> | grep -E '^rename (from|to) '  # recover them
 ```
 
 ### Step 2: Identify affected nodes
