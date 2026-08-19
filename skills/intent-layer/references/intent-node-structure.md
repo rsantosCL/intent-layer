@@ -7,7 +7,9 @@ Every node and offload file must follow this structure (terms in `non-negotiable
 
 ## Purpose & Scope
 
-What this area handles, and explicitly what it does NOT handle.
+What this area is responsible for, and why it exists — a node covers its
+directory and subdirectories; an offload covers one topic and says when to
+read it. Name anything out of scope a reader might otherwise assume.
 
 ## Entry Points & Contracts
 
@@ -29,6 +31,6 @@ Link definitions for child nodes and offload files. The parenthesized title desc
 [TOPIC.md]: TOPIC.md (when to read it, what it explains)
 ```
 
-## Offload files
+## Offload scope
 
-`## Purpose & Scope` says when to read the file and what it owns — never the parent's section names: those go stale on any parent restructure, and the validator only checks that downlink targets exist, not sections. Topic scoping also routes future overflow (`size-rules.md`).
+An offload's `## Purpose & Scope` must never enumerate the parent's section names: they go stale on any restructure, and the validator checks downlink targets, not sections. Topic scoping is also the routing key for overflow (`size-rules.md`, step 2).
