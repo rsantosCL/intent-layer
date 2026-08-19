@@ -49,7 +49,7 @@ The naming rules and blocklist are defined once in `references/offload-naming.js
 
 **If this was installed from the marketplace**, hooks are already active in every repo — no per-project setup needed. A repo opts out by setting `"enabledPlugins": {"intent-layer@intent-layer": false}` in its `.claude/settings.json`.
 
-**If this was vendored into the repo** (`.claude/skills/intent-layer/`), the hooks live in `.claude/hooks/` and are wired in `.claude/settings.json`. Never hand-edit that wiring or hand-copy these files: run `./vendorize.sh <path-to-repo>` from a clone of the upstream repo, which owns the file manifest, the settings merge, and the version stamp. Re-run it after every upstream pull.
+**If this was vendored into the repo** (`.claude/skills/intent-layer/`), the hooks live in `.claude/hooks/` and are wired in `.claude/settings.json`. Never hand-edit that wiring or hand-copy these files: run `./vendorize.sh <path-to-repo>` from a clone of the upstream repo, which owns the file manifest and the settings merge. Re-run it after every upstream pull.
 
 Both hook scripts silently exit if the target file isn't a `CLAUDE.md` or offload file, or if the rule files are missing — so they're safe to have installed even in repos where this skill isn't actively used.
 

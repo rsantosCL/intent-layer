@@ -2,8 +2,8 @@
 # Vendor this plugin into a consuming repository that can't install it from the
 # marketplace. Copies an explicit file manifest into <repo>/.claude/, wires the
 # hooks in settings.json (shared) and disables the marketplace plugin in
-# settings.local.json (personal), and records a version stamp so the next sync
-# can tell an old vendored copy from a local edit.
+# settings.local.json (personal). An old vendored copy is told from a local edit
+# by matching content against this repo's history.
 #
 # Usage: ./vendorize.sh [--dry-run] [--force] [--with-parked] <path-to-repo>
 #        ./vendorize.sh --uninstall [--dry-run] <path-to-repo>
@@ -12,7 +12,6 @@
 set -euo pipefail
 
 SRC="$(cd "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-UPSTREAM_URL="https://github.com/rsantosCL/intent-layer"
 PLUGIN_KEY="intent-layer@intent-layer"
 
 # --- manifest ----------------------------------------------------------------
@@ -70,7 +69,7 @@ Usage: ./vendorize.sh [--dry-run] [--force] [--with-parked] <path-to-repo>
   --dry-run       Report what would change; write nothing.
   --force         Overwrite destination files that diverge from upstream.
   --with-parked   Also install the parked stop/list hooks (off by default).
-  --uninstall     Remove the vendored files, the stamp, and the settings entries.
+  --uninstall     Remove the vendored files and the settings entries.
 EOF
 }
 
@@ -126,7 +125,6 @@ TARGET="$(cd "$TARGET" && pwd)"
 DEST_ROOT="$TARGET/.claude"
 SETTINGS="$DEST_ROOT/settings.json"
 LOCAL_SETTINGS="$DEST_ROOT/settings.local.json"
-STAMP="$DEST_ROOT/.intent-layer-vendor.json"
 
 FILES=("${MANIFEST[@]}")
 if [ "$WITH_PARKED" -eq 1 ] || [ "$UNINSTALL" -eq 1 ]; then
@@ -283,10 +281,6 @@ if [ "$UNINSTALL" -eq 1 ]; then
         printf '  remove .claude/%s/\n' "$d"
         [ "$DRY_RUN" -eq 1 ] || rm -rf "${DEST_ROOT:?}/$d"
     done
-    if [ -e "$STAMP" ]; then
-        printf '  remove .claude/.intent-layer-vendor.json\n'
-        [ "$DRY_RUN" -eq 1 ] || rm -f "$STAMP"
-    fi
     if [ "$DRY_RUN" -eq 1 ]; then
         edit_settings "dry-uninstall"
         printf 'Dry run — nothing written.\n'
@@ -300,32 +294,28 @@ if [ "$UNINSTALL" -eq 1 ]; then
 fi
 
 # --- classify ----------------------------------------------------------------
-# Every destination is compared against upstream and, where a stamp exists,
-# against what this script last wrote there. That distinguishes an older
-# vendored copy (safe to overwrite) from an edit made in place (must not be
-# clobbered silently).
+# A destination is compared against upstream's current copy, then against every
+# copy upstream ever published for that path: a match means an older vendored
+# copy (safe to overwrite), no match means an edit made in place. Git already
+# content-addresses files, so this repo's history is the only input needed.
 
 TMPDIR_RUN="$(mktemp -d)"
-STAMP_LIST="$TMPDIR_RUN/stamp"
-: > "$STAMP_LIST"
 
-if [ -f "$STAMP" ]; then
-    python3 - "$STAMP" > "$STAMP_LIST" <<'PYEOF'
-import json
-import pathlib
-import sys
-
-try:
-    data = json.loads(pathlib.Path(sys.argv[1]).read_text())
-except (OSError, json.JSONDecodeError):
-    sys.exit(0)
-for dest, digest in (data.get("files") or {}).items():
-    print(f"{dest} {digest}")
-PYEOF
-fi
-
-stamped_sha() {
-    awk -v k="$1" '$1 == k { print $2 }' "$STAMP_LIST"
+# Short commit whose version of $1 matches the file at $2; fails if upstream
+# never published it. A shallow clone reads as diverged — the safe direction.
+upstream_published() {
+    src="$1"
+    dest_file="$2"
+    want="$(git -C "$SRC" hash-object "$dest_file" 2> /dev/null)" || return 1
+    [ -n "$want" ] || return 1
+    for commit in $(git -C "$SRC" rev-list HEAD -- "$src" 2> /dev/null); do
+        blob="$(git -C "$SRC" rev-parse -q --verify "$commit:$src" 2> /dev/null)" || continue
+        if [ "$blob" = "$want" ]; then
+            git -C "$SRC" rev-parse --short "$commit"
+            return 0
+        fi
+    done
+    return 1
 }
 
 new_files=()
@@ -341,12 +331,10 @@ for pair in "${FILES[@]}"; do
         new_files=("${new_files[@]+"${new_files[@]}"}" "$dest")
         continue
     fi
-    dest_sha="$(sha "$DEST_ROOT/$dest")"
-    stamp_sha="$(stamped_sha "$dest")"
-    if [ "$dest_sha" = "$(sha "$SRC/$src")" ]; then
+    if [ "$(sha "$DEST_ROOT/$dest")" = "$(sha "$SRC/$src")" ]; then
         same_count=$((same_count + 1))
-    elif [ -n "$stamp_sha" ] && [ "$dest_sha" = "$stamp_sha" ]; then
-        outdated_files=("${outdated_files[@]+"${outdated_files[@]}"}" "$dest")
+    elif from="$(upstream_published "$src" "$DEST_ROOT/$dest")"; then
+        outdated_files=("${outdated_files[@]+"${outdated_files[@]}"}" "$dest|$from")
     else
         diverged_files=("${diverged_files[@]+"${diverged_files[@]}"}" "$dest")
     fi
@@ -356,40 +344,27 @@ done
 
 VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$SRC/.claude-plugin/plugin.json")"
 COMMIT="$(git -C "$SRC" rev-parse HEAD 2> /dev/null || printf 'unknown')"
-DIRTY=0
 if [ -n "$(git -C "$SRC" status --porcelain 2> /dev/null)" ]; then
-    DIRTY=1
-    printf 'Warning: this repo has uncommitted changes; the stamp will record them as dirty.\n' >&2
+    # Files copied from uncommitted work are in no commit, so the next sync
+    # finds no match for them and reports them diverged.
+    printf 'Warning: this repo has uncommitted changes; anything vendored from them reads as diverged next sync.\n' >&2
 fi
 
 printf 'Vendoring intent-layer %s (%s) into %s\n' "$VERSION" "${COMMIT:0:12}" "$TARGET"
-if [ -f "$STAMP" ]; then
-    python3 - "$STAMP" <<'PYEOF'
-import json
-import pathlib
-import sys
-
-d = json.loads(pathlib.Path(sys.argv[1]).read_text())
-commit = str(d.get("commit"))[:12]
-print(f"  installed: {d.get('version')} ({commit}) on {d.get('vendored_at')}")
-PYEOF
-else
-    printf '  installed: no stamp (first sync, or a hand copy predating stamps)\n'
-fi
 printf '  %d new, %d unchanged, %d outdated, %d diverged\n' \
     "${#new_files[@]}" "$same_count" "${#outdated_files[@]}" "${#diverged_files[@]}"
 
 for f in ${new_files[@]+"${new_files[@]}"}; do printf '  +  .claude/%s\n' "$f"; done
-for f in ${outdated_files[@]+"${outdated_files[@]}"}; do printf '  ~  .claude/%s\n' "$f"; done
+for f in ${outdated_files[@]+"${outdated_files[@]}"}; do
+    printf '  ~  .claude/%s  (vendored from %s)\n' "${f%%|*}" "${f##*|}"
+done
 for f in ${diverged_files[@]+"${diverged_files[@]}"}; do printf '  !  .claude/%s\n' "$f"; done
 
 if [ "${#diverged_files[@]}" -gt 0 ]; then
     cat >&2 <<'EOF'
 
-Files marked ! match neither this repo nor what vendorize.sh last wrote there:
-they are local edits, or a hand copy of unknown provenance. Overwriting drops
-them. Diff them against this repo, port anything worth keeping upstream, then
-re-run.
+Files marked ! match no version this repo has published — local edits, or a hand
+copy of unknown provenance. Overwriting drops them: diff, port upstream, re-run.
 EOF
     if [ "$FORCE" -eq 1 ]; then
         printf 'Overwriting anyway (--force).\n' >&2
@@ -421,9 +396,6 @@ for d in $OWNED_DIRS; do
     rm -rf "${DEST_ROOT:?}/$d"
 done
 
-MANIFEST_LIST="$TMPDIR_RUN/manifest"
-: > "$MANIFEST_LIST"
-
 for pair in "${FILES[@]}"; do
     src="${pair%%|*}"
     dest="${pair##*|}"
@@ -433,41 +405,11 @@ for pair in "${FILES[@]}"; do
         *" $dest "*) chmod 755 "$DEST_ROOT/$dest" ;;
         *) chmod 644 "$DEST_ROOT/$dest" ;;
     esac
-    printf '%s %s\n' "$dest" "$(sha "$DEST_ROOT/$dest")" >> "$MANIFEST_LIST"
 done
 printf '  copied %d files into .claude/\n' "${#FILES[@]}"
 
 edit_settings "install"
 
-python3 - "$STAMP" "$VERSION" "$COMMIT" "$DIRTY" "$UPSTREAM_URL" "$MANIFEST_LIST" <<'PYEOF'
-import datetime
-import json
-import pathlib
-import sys
-
-stamp, version, commit, dirty, url, listing = sys.argv[1:7]
-files = {}
-for line in pathlib.Path(listing).read_text().splitlines():
-    if line.strip():
-        dest, digest = line.rsplit(" ", 1)
-        files[dest] = digest
-now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
-pathlib.Path(stamp).write_text(
-    json.dumps(
-        {
-            "source": url,
-            "version": version,
-            "commit": commit,
-            "dirty": dirty == "1",
-            "vendored_at": now.isoformat().replace("+00:00", "Z"),
-            "files": files,
-        },
-        indent=2,
-    )
-    + "\n"
-)
-PYEOF
-printf '  wrote .claude/.intent-layer-vendor.json\n'
 
 # --- verify ------------------------------------------------------------------
 

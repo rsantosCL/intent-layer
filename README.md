@@ -42,7 +42,7 @@ cd intent-layer
 
 `link-cli.sh` touches no repo — it only puts `validate-intent-layer` on your `PATH` for CI, pre-commit hooks, and shell use, and pre-grants the Bash permission the `:validate` command needs. It symlinks rather than copies, so a `git pull` here updates the tool everywhere. Undo with `./link-cli.sh --unlink`.
 
-`vendorize.sh` copies an explicit file manifest into `../my-repo/.claude/` and writes `.claude/.intent-layer-vendor.json` recording the upstream commit and a checksum per file. Settings are merged into two files, split by who each one is for:
+`vendorize.sh` copies an explicit file manifest into `../my-repo/.claude/`, adding no tracking files of its own. Settings are merged into two files, split by who each one is for:
 
 - **`settings.json`** (shared, committed) — the two hook entries and the validator permission, merged without disturbing the repo's own hooks. Every contributor needs these.
 - **`settings.local.json`** (personal, git-ignored) — `enabledPlugins: {"intent-layer@intent-layer": false}`. This only matters if you *also* have the marketplace plugin installed: without it both copies are active in that repo, every hook fires twice, and two skills answer to the same name.
@@ -50,10 +50,10 @@ cd intent-layer
 ```sh
 ./vendorize.sh --dry-run ../my-repo   # report what would change
 ./vendorize.sh ../my-repo             # sync — safe to re-run after every pull
-./vendorize.sh --uninstall ../my-repo # remove files, stamp, and both settings entries
+./vendorize.sh --uninstall ../my-repo # remove files and both settings entries
 ```
 
-Re-runs use the stamp to tell an out-of-date copy (overwritten silently) from a file edited in place (flagged `!`, and the sync stops unless you pass `--force`). Commit the resulting `.claude/` changes in the consuming repo. See `VENDORING.md` for the ownership rules.
+Re-runs match each destination file against this repo's history to tell an out-of-date copy (overwritten silently) from a file edited in place (flagged `!`, and the sync stops unless you pass `--force`); nothing is written into the target to track it. Commit the resulting `.claude/` changes in the consuming repo. See `VENDORING.md` for the ownership rules.
 
 ## Usage
 
