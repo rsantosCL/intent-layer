@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-# Read this tool's design notes before changing it.
 # Validates intent layer nodes (CLAUDE.md) and offload files under a directory tree.
 # Usage: validate-intent-layer [--json|--jsonl] [directory]  (defaults to .)
 

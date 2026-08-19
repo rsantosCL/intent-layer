@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-# Read this tool's design notes before changing it.
 # Resolves changed files (vs. a base ref) to their owning intent-layer node.
 #
 # Covered-subtree rule: root never owns a file by walk-up (every path walks up to it,
