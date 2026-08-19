@@ -41,19 +41,9 @@ Use the template in `references/intent-node-structure.md` for every node and off
 
 ---
 
-## Enforcement Hook
+## Enforcement
 
-This skill ships with a `PreToolUse` hook (`hooks/intent-layer-preload.sh`) that injects `references/non-negotiable-rules.md` + `references/size-rules.md` + `references/intent-node-structure.md` into context every time an agent is about to Write or Edit a node (`CLAUDE.md`) or an offload file (ALL-CAPS hyphenated `TOPIC.md`). Well-known generic ALL-CAPS docs (`README.md`, `CHANGELOG.md`, `LICENSE.md`, `CONTRIBUTING.md`, etc.) are blocklisted.
-
-The naming rules and blocklist are defined once in `references/offload-naming.json` and shared between this hook and `bin/validate-intent-layer`.
-
-**If this was installed from the marketplace**, hooks are already active in every repo — no per-project setup needed. A repo opts out by setting `"enabledPlugins": {"intent-layer@intent-layer": false}` in its `.claude/settings.json`.
-
-**If this was vendored into the repo** (`.claude/skills/intent-layer/`), the hooks live in `.claude/hooks/` and are wired in `.claude/settings.json`. Never hand-edit that wiring or hand-copy these files: run `./vendorize.sh <path-to-repo>` from a clone of the upstream repo, which owns the file manifest and the settings merge. Re-run it after every upstream pull.
-
-Both hook scripts silently exit if the target file isn't a `CLAUDE.md` or offload file, or if the rule files are missing — so they're safe to have installed even in repos where this skill isn't actively used.
-
-Verify either path with `grep intent-layer-preload .claude/settings.json` (vendored) or `/plugin` (marketplace).
+Writes to a node or offload file are enforced automatically: the operative rules are injected before the write, and the file is validated after it — fix any reported errors before continuing. Don't edit the hook scripts or their settings wiring; both come from the install.
 
 ---
 

@@ -22,7 +22,7 @@ You can substitute other directories if needed — the key is to have one small,
 
 For each test directory, spawn two agents in parallel — one with-skill, one without. Tell both to output CLAUDE.md content directly in their response (not write to disk) to avoid permission issues with subagents.
 
-Fill in `<skill-path>` with the absolute path to `skills/intent-layer/SKILL.md` in your checkout of this repo, and `<project-dir>` with the absolute path to the project you're evaluating against.
+Fill in `<skill-path>` with the absolute path to this skill's `SKILL.md`, and `<project-dir>` with the absolute path to the project you're evaluating against.
 
 ### With-skill agent prompt template
 

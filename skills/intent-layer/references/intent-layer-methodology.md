@@ -4,7 +4,7 @@
 
 ---
 
-> **Operative rules in this repo.** The article below describes the methodology. The terminology, non-negotiable rules, and numeric thresholds that govern every intent-layer create/update workflow here live in `claude/skills/intent-layer/SKILL.md` and its `references/`. Headline rules:
+> **Operative rules.** The article below describes the methodology. The terminology, non-negotiable rules, and numeric thresholds that govern every intent-layer create/update workflow live in this skill's `SKILL.md` and its reference files. Headline rules:
 >
 > - **Terminology** — *node* (`CLAUDE.md`, capped at ~1,000 tokens), *offload file* (uncapped `.md` with the same structure, named `TOPIC.md` in ALL-CAPS), *reference* (prose mention, not part of the layer), *downlink* (the link itself).
 > - **When to create a node** — only when ALL three hard reasons hold: rule compliance, local-only relevance, and doesn't-fit-in-the-closest-ancestor. No source-size floor.
