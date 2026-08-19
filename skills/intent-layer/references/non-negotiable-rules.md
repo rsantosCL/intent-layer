@@ -23,7 +23,7 @@ The **intent layer** is exactly the set of nodes and offload files reachable via
 
 ## Always do these
 
-1. **Aggressive compression — never at the cost of signal.** Distill into the minimum high-signal tokens. If compacting further would drop a contract, invariant, or anti-pattern, offload instead (`size-rules.md`); if unsure whether something is signal, ask the user.
+1. **Aggressive compression — never at the cost of signal.** Distill every node and offload file into the minimum high-signal tokens. If compacting further would drop a contract, invariant, or anti-pattern, move it to an offload (`size-rules.md`) — and compact that too; if unsure whether something is signal, ask the user.
 2. **Progressive disclosure via downlinks.** A file is part of the intent layer only if it is downlinked (and has node structure). Prose mentions are references, not commitments — promote them to downlinks to pull them in.
 3. **Hidden knowledge.** Surface what senior engineers know by heart but isn't in the code.
 4. **Leaf-first.** Write deepest nodes first; parents summarize children, not raw code.
