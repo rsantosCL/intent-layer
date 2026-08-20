@@ -40,11 +40,11 @@ cd intent-layer
 ./vendorize.sh ../my-repo     # repo-level: install skill + hooks + commands
 ```
 
-`link-cli.sh` touches no repo — it only puts `validate-intent-layer` on your `PATH` for CI, pre-commit hooks, and shell use, and pre-grants the Bash permission the `:validate` command needs. It symlinks rather than copies, so a `git pull` here updates the tool everywhere. Undo with `./link-cli.sh --unlink`.
+`link-cli.sh` touches no repo — it only puts `validate-intent-layer` on your `PATH` for CI, pre-commit hooks, and shell use. It symlinks rather than copies, so a `git pull` here updates the tool everywhere. Undo with `./link-cli.sh --unlink`.
 
 `vendorize.sh` copies an explicit file manifest into `../my-repo/.claude/`, adding no tracking files of its own. Settings are merged into two files, split by who each one is for:
 
-- **`settings.json`** (shared, committed) — the two hook entries and the validator permission, merged without disturbing the repo's own hooks. Every contributor needs these.
+- **`settings.json`** (shared, committed) — the two hook entries, merged without disturbing the repo's own hooks. Every contributor needs these.
 - **`settings.local.json`** (personal, git-ignored) — `enabledPlugins: {"intent-layer@intent-layer": false}`. This only matters if you *also* have the marketplace plugin installed: without it both copies are active in that repo, every hook fires twice, and two skills answer to the same name.
 
 ```sh

@@ -20,6 +20,12 @@ PLUGIN_KEY="intent-layer@intent-layer"
 # be vendored (link-cli.sh, docs/, .git-hooks/, .claude-plugin/, lint configs,
 # hooks/CLAUDE.md). Never express it as a glob over the destination — consuming
 # repos keep their own files next to these.
+#
+# `vendored/` holds variants that address .claude/bin/ directly instead of
+# probing every layout. Keep them outside commands/, or the plugin publishes
+# them as extra slash commands. Copies are byte-for-byte: the divergence check
+# hashes the destination and hunts that blob in the source's history, so
+# transforming during a copy would read `diverged` forever.
 MANIFEST=(
     "skills/intent-layer/SKILL.md|skills/intent-layer/SKILL.md"
     "skills/intent-layer/references/intent-layer-methodology.md|skills/intent-layer/references/intent-layer-methodology.md"
@@ -35,7 +41,7 @@ MANIFEST=(
     "hooks/intent-layer-validate.sh|hooks/intent-layer-validate.sh"
     "commands/create.md|commands/intent-layer/create.md"
     "commands/update.md|commands/intent-layer/update.md"
-    "commands/validate.md|commands/intent-layer/validate.md"
+    "vendored/validate.md|commands/intent-layer/validate.md"
 )
 
 # Parked hooks — only with --with-parked. The stop hook costs ~30s per turn; see
@@ -137,8 +143,8 @@ edit_settings() {
     # $1: install | uninstall | dry-install | dry-uninstall
     #
     # Two files, split by who the setting is for. settings.json gets the hook
-    # wiring and the validator permission — facts about the repo that every
-    # contributor needs, so they belong in the shared, committed file.
+    # wiring — facts about the repo that every contributor needs, so they
+    # belong in the shared, committed file.
     # settings.local.json gets the plugin disable, which matters only to
     # someone who ALSO has the marketplace plugin installed; that is a personal
     # collision, not a property of the repo.
@@ -156,13 +162,21 @@ HOOKS = [
     ("PreToolUse", "intent-layer-preload.sh", 5),
     ("PostToolUse", "intent-layer-validate.sh", 15),
 ]
-RULE = "Bash(python3 */validate-intent-layer*)"
+INDENTS = {}
 
 
 def load(path):
     if not path.exists():
         return {}
     raw = path.read_text().strip()
+    # Keep the file's own indent width: ours would turn a one-line merge into a
+    # whole-file diff.
+    INDENTS[path] = 2
+    for line in raw.splitlines()[1:]:
+        body = line.lstrip(" ")
+        if body and body != line:
+            INDENTS[path] = len(line) - len(body)
+            break
     try:
         return json.loads(raw) if raw else {}
     except json.JSONDecodeError as exc:
@@ -182,10 +196,10 @@ def save(path, data, changes):
         path.unlink(missing_ok=True)
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n")
+    path.write_text(json.dumps(data, indent=INDENTS.get(path, 2)) + "\n")
 
 
-# --- shared: hook wiring + validator permission ------------------------------
+# --- shared: hook wiring -----------------------------------------------------
 data = load(shared_path)
 changes = []
 hooks = data.setdefault("hooks", {})
@@ -219,28 +233,12 @@ for event, script, timeout in HOOKS:
         )
         changes.append(f"added {event} -> {script}")
 
-allow = data.get("permissions", {}).get("allow", [])
-if uninstall:
-    if RULE in allow:
-        allow.remove(RULE)
-        changes.append(f"removed permission {RULE}")
-else:
-    allow = data.setdefault("permissions", {}).setdefault("allow", [])
-    if RULE not in allow:
-        allow.append(RULE)
-        changes.append(f"added permission {RULE}")
-
 # Drop only the containers this script emptied; leave anything still in use.
 for event, _, _ in HOOKS:
     if event in hooks and not hooks[event]:
         del hooks[event]
 if "hooks" in data and not data["hooks"]:
     del data["hooks"]
-if "permissions" in data:
-    if not data["permissions"].get("allow", ["x"]):
-        del data["permissions"]["allow"]
-    if not data["permissions"]:
-        del data["permissions"]
 
 save(shared_path, data, changes)
 

@@ -2,17 +2,10 @@
 description: Validate the intent layer (CLAUDE.md nodes and offload files) under the current directory
 ---
 
-Run the intent layer validator with JSON output. The tool sits at
-`<root>/bin/validate-intent-layer`; only the root differs — plugin, vendored, clone:
+Run the intent layer validator with JSON output:
 
 ```bash
-for root in "${CLAUDE_PLUGIN_ROOT:-}" "${CLAUDE_PROJECT_DIR:-.}/.claude" "${CLAUDE_PROJECT_DIR:-.}"; do
-    [ -n "$root" ] && [ -f "$root/bin/validate-intent-layer" ] || continue
-    validator="$root/bin/validate-intent-layer"
-    break
-done
-[ -n "${validator:-}" ] || { echo "validate-intent-layer not found"; exit 1; }
-python3 "$validator" --json .
+python3 "${CLAUDE_PROJECT_DIR:-.}/.claude/bin/validate-intent-layer" --json .
 ```
 
 Parse the JSON output and report:

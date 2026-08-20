@@ -64,4 +64,13 @@ if (( ${#md_files[@]} > 0 )) && command -v rumdl >/dev/null 2>&1; then
   out=$(rumdl check "${md_files[@]}" 2>&1) || { printf '%s\n' "$out"; rc=1; }
 fi
 
+# The two validate.md copies may differ only in the fenced block that locates
+# the validator; everything below the reporting instructions must match.
+tail_of() { sed -n '/^Parse the JSON output/,$p' "$1"; }
+if [[ -f commands/validate.md && -f vendored/validate.md ]] \
+  && ! diff -q <(tail_of commands/validate.md) <(tail_of vendored/validate.md) >/dev/null; then
+  printf 'commands/validate.md and vendored/validate.md have drifted below "Parse the JSON output"\n'
+  rc=1
+fi
+
 exit $rc
