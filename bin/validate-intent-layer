@@ -435,7 +435,8 @@ def main():
         prog="validate-intent-layer",
         description="Validates intent layer nodes (CLAUDE.md) and offload files"
         " under a directory tree. With no format flag, prints a tree with colors"
-        " and a summary line. Exits 1 on any error, 0 on a clean pass.",
+        " and a summary line. Exits 0 on a clean pass, 2 on a usage error,"
+        " 1 otherwise.",
     )
     fmt = parser.add_mutually_exclusive_group()
     fmt.add_argument(
