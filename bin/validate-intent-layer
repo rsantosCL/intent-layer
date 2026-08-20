@@ -465,11 +465,14 @@ def main():
     use_colors = output_format == "text" and sys.stdout.isatty()
     validator = Validator(str(target_path), output_format, use_colors)
 
+    # check_node drops nodes resolving out of the tree; counting them here would
+    # satisfy the guard below and report an empty pass.
     claude_files = sorted(
         f
         for f in target_path.rglob("CLAUDE.md")
         if ".git" not in f.relative_to(target_path).parts
         and not _in_blocklisted_dir(f.relative_to(target_path))
+        and f.resolve().is_relative_to(target_path)
     )
 
     if not claude_files:
@@ -485,8 +488,20 @@ def main():
     orphan_map = validator.orphan_check(claude_files)
 
     if output_format == "text":
+        # The scan root need not hold a node — the hook validates from an edited
+        # node's directory. Render whatever nothing downlinks.
         root = (target_path / "CLAUDE.md").resolve()
-        validator.render_text_tree(root, "", "", orphan_map)
+        if root in validator.node_data:
+            forest = [root]
+        else:
+            linked = {
+                child
+                for data in validator.node_data.values()
+                for child in data["all_children"]
+            }
+            forest = sorted(f for f in validator.node_data if f not in linked)
+        for node in forest:
+            validator.render_text_tree(node, "", "", orphan_map)
 
     errors = validator.errors
     warnings = validator.warnings
