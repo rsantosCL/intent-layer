@@ -44,6 +44,7 @@ TOKEN_WARN_PCT = 90
 MD_ICON = "●"
 WARN_ICON = "⚠"
 ERROR_ICON = "✖"
+LINK_ICON = "↗"
 _E = "\033"
 COLORS = {
     "RED": f"{_E}[0;31m",
@@ -102,6 +103,7 @@ class Validator:
         self.node_data = {}  # file -> render data (text mode)
         self.json_files = []
         self.json_orphans = []
+        self.show_cross = True
 
     def _within_target(self, path):
         return path.is_relative_to(self.target)
@@ -304,6 +306,13 @@ class Validator:
             else:
                 print(f"{issue_prefix}{c['YELLOW']}{WARN_ICON} {pre}{c['RESET']}{suf}")
 
+        if self.show_cross:
+            for ref in data["cross"]:
+                print(
+                    f"{issue_prefix}{c['DIM']}{LINK_ICON} "
+                    f"{ref['rel']}  (cross-link){c['RESET']}"
+                )
+
         n = len(all_items)
         for i, (item_path, reason) in enumerate(all_items, 1):
             is_last = i == n
@@ -456,15 +465,25 @@ def main():
         " processing incrementally or piping into jq",
     )
     parser.add_argument(
+        "--no-cross-links",
+        action="store_true",
+        help="omit the cross-link references a node makes outside its own"
+        " directory, leaving only the ownership tree; text output only",
+    )
+    parser.add_argument(
         "directory", nargs="?", default=".", help="directory to scan (default: .)"
     )
     parser.set_defaults(fmt="text")
     args = parser.parse_args()
 
+    if args.no_cross_links and args.fmt != "text":
+        parser.error("--no-cross-links applies to text output only")
+
     output_format = args.fmt
     target_path = pathlib.Path(args.directory).resolve()
     use_colors = output_format == "text" and sys.stdout.isatty()
     validator = Validator(str(target_path), output_format, use_colors)
+    validator.show_cross = not args.no_cross_links
 
     # check_node drops nodes resolving out of the tree; counting them here would
     # satisfy the guard below and report an empty pass.
@@ -488,6 +507,30 @@ def main():
 
     orphan_map = validator.orphan_check(claude_files)
 
+    # Nearest owner wins: a target belongs to the deepest node whose directory
+    # contains it. A downlink that leaves its own directory is a cross-link —
+    # a reference, never a tree edge. Containment cannot cycle, so the render
+    # is always a tree and always has at least one unowned node to start from.
+    owner = {}
+    for node, data in validator.node_data.items():
+        for child in data["all_children"]:
+            # A node never owns itself; a self-downlink would otherwise leave
+            # the forest with no node to start from.
+            if child == node or not child.is_relative_to(data["directory"]):
+                continue
+            held = owner.get(child)
+            if held is None or len(data["directory"].parts) > len(
+                validator.node_data[held]["directory"].parts
+            ):
+                owner[child] = node
+    for node, data in validator.node_data.items():
+        data["cross"] = [
+            {"rel": str(c.relative_to(target_path))}
+            for c in data["all_children"]
+            if owner.get(c) != node
+        ]
+        data["all_children"] = [c for c in data["all_children"] if owner.get(c) == node]
+
     if output_format == "text":
         # The scan root need not hold a node — the hook validates from an edited
         # node's directory. Render whatever nothing downlinks.
@@ -501,6 +544,10 @@ def main():
                 for child in data["all_children"]
             }
             forest = sorted(f for f in validator.node_data if f not in linked)
+            # Never swallow the tree: if ownership left nothing to start from,
+            # show every node rather than printing a bare verdict.
+            if not forest:
+                forest = sorted(validator.node_data)
         for node in forest:
             validator.render_text_tree(node, "", "", orphan_map)
 
