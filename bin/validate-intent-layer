@@ -72,6 +72,25 @@ def _tokens(path):
     return chars * 10 // 35
 
 
+def _report_root_error(validator, fmt, msg):
+    # Reported against the node that should exist, so every consumer — the tree,
+    # the JSON `files` array, the post-edit hook's jq — surfaces it unchanged.
+    obj = {
+        "path": "CLAUDE.md",
+        "kind": "node",
+        "tokens": 0,
+        "token_pct": 0,
+        "issues": [{"level": "error", "message": msg}],
+    }
+    if fmt == "json":
+        validator.json_files.append(obj)
+    elif fmt == "jsonl":
+        print(json.dumps(obj))
+    else:
+        c = validator.c
+        print(f"{c['RED']}{ERROR_ICON} {msg}{c['RESET']}")
+
+
 def _is_project_root(target):
     # ROOT_CAP applies only to the true project root, not any scan root — the
     # validate hook runs from the edited node's own directory, which must not
@@ -486,7 +505,7 @@ def main():
     validator.show_cross = not args.no_cross_links
 
     # check_node drops nodes resolving out of the tree; counting them here would
-    # satisfy the guard below and report an empty pass.
+    # satisfy the root check below and report an empty pass.
     claude_files = sorted(
         f
         for f in target_path.rglob("CLAUDE.md")
@@ -495,61 +514,53 @@ def main():
         and f.resolve().is_relative_to(target_path)
     )
 
-    if not claude_files:
-        print(f"No CLAUDE.md files found under {target_path}")
-        sys.exit(1)
-
     if output_format == "jsonl":
         print(json.dumps({"type": "start", "target": str(target_path)}))
 
-    for f in claude_files:
-        validator.check_node(f)
+    # Every scan is rooted: the target owns a node, or there is nothing to
+    # validate from. That keeps the render a single tree and guarantees every
+    # orphan an ancestor to attach its warning to.
+    root = target_path / "CLAUDE.md"
+    if not root.exists() or not root.resolve().is_relative_to(target_path):
+        above = next(
+            (str(d) for d in target_path.parents if (d / "CLAUDE.md").exists()), None
+        )
+        msg = "no CLAUDE.md at the scan root"
+        msg += f" — nearest node above is {above}" if above else " and none above it"
+        validator.errors += 1
+        _report_root_error(validator, output_format, msg)
+    else:
+        for f in claude_files:
+            validator.check_node(f)
 
-    orphan_map = validator.orphan_check(claude_files)
+        orphan_map = validator.orphan_check(claude_files)
 
-    # Nearest owner wins: a target belongs to the deepest node whose directory
-    # contains it. A downlink that leaves its own directory is a cross-link —
-    # a reference, never a tree edge. Containment cannot cycle, so the render
-    # is always a tree and always has at least one unowned node to start from.
-    owner = {}
-    for node, data in validator.node_data.items():
-        for child in data["all_children"]:
-            # A node never owns itself; a self-downlink would otherwise leave
-            # the forest with no node to start from.
-            if child == node or not child.is_relative_to(data["directory"]):
-                continue
-            held = owner.get(child)
-            if held is None or len(data["directory"].parts) > len(
-                validator.node_data[held]["directory"].parts
-            ):
-                owner[child] = node
-    for node, data in validator.node_data.items():
-        data["cross"] = [
-            {"rel": str(c.relative_to(target_path))}
-            for c in data["all_children"]
-            if owner.get(c) != node
-        ]
-        data["all_children"] = [c for c in data["all_children"] if owner.get(c) == node]
+        # Nearest owner wins: a target belongs to the deepest node whose
+        # directory contains it. A downlink that leaves its own directory is a
+        # cross-link — a reference, never a tree edge, so the render stays a
+        # tree no matter how the nodes point at each other.
+        owner = {}
+        for node, data in validator.node_data.items():
+            for child in data["all_children"]:
+                if child == node or not child.is_relative_to(data["directory"]):
+                    continue
+                held = owner.get(child)
+                if held is None or len(data["directory"].parts) > len(
+                    validator.node_data[held]["directory"].parts
+                ):
+                    owner[child] = node
+        for node, data in validator.node_data.items():
+            data["cross"] = [
+                {"rel": str(c.relative_to(target_path))}
+                for c in data["all_children"]
+                if owner.get(c) != node
+            ]
+            data["all_children"] = [
+                c for c in data["all_children"] if owner.get(c) == node
+            ]
 
-    if output_format == "text":
-        # The scan root need not hold a node — the hook validates from an edited
-        # node's directory. Render whatever nothing downlinks.
-        root = (target_path / "CLAUDE.md").resolve()
-        if root in validator.node_data:
-            forest = [root]
-        else:
-            linked = {
-                child
-                for data in validator.node_data.values()
-                for child in data["all_children"]
-            }
-            forest = sorted(f for f in validator.node_data if f not in linked)
-            # Never swallow the tree: if ownership left nothing to start from,
-            # show every node rather than printing a bare verdict.
-            if not forest:
-                forest = sorted(validator.node_data)
-        for node in forest:
-            validator.render_text_tree(node, "", "", orphan_map)
+        if output_format == "text":
+            validator.render_text_tree(root.resolve(), "", "", orphan_map)
 
     errors = validator.errors
     warnings = validator.warnings

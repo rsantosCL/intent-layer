@@ -5,11 +5,13 @@ Validates the intent layer (nodes and offload files — terms in `skills/intent-
 ## Usage
 
 ```text
-validate-intent-layer [--json|--jsonl] [directory]
+validate-intent-layer [--json|--jsonl] [--no-cross-links] [directory]
 validate-intent-layer --help
 ```
 
-Defaults to the current directory. The path is resolved to an absolute path at startup so all internal comparisons are stable regardless of how the script was invoked. `--json` and `--jsonl` are mutually exclusive; omitting both produces human-readable text output. `--help` (or `-h`) prints usage and flag descriptions then exits 0.
+Defaults to the current directory. The path is resolved to an absolute path at startup so all internal comparisons are stable regardless of how the script was invoked. `--json` and `--jsonl` are mutually exclusive; omitting both produces human-readable text output. `--no-cross-links` applies to text output only — pairing it with either JSON flag is a usage error. `--help` (or `-h`) prints usage and flag descriptions then exits 0.
+
+**Every scan is rooted.** The target directory must contain a `CLAUDE.md` that resolves inside the target; otherwise the run reports one error — `no CLAUDE.md at the scan root`, naming the nearest node above it when one exists — and validates nothing further. A symlinked root node pointing out of the tree counts as absent. This is why the render is always a single tree and why every orphan has an ancestor to attach its warning to.
 
 Arguments are parsed with `argparse`, so usage errors — an unknown flag, or `--json` and `--jsonl` together — print to stderr and exit **2**, distinct from the exit 1 that means validation failed.
 
@@ -18,6 +20,8 @@ Arguments are parsed with `argparse`, so usage errors — an unknown flag, or `-
 ### Text mode (default)
 
 The output is a single depth-first tree rooted at the root `CLAUDE.md`. Every file — nodes and offload files alike — is rendered with a `●` prefix. The root node is flush-left; all children use `├─`/`└─` connectors and indent with `│  `/`   ` continuation strings. Nesting is unbounded. Orphan files appear in the tree under their nearest ancestor node, marked `⚠` in yellow with the reason in parentheses.
+
+**Tree edges are ownership, not references.** A node owns a downlink target only when its own directory contains it; where several nodes qualify, the deepest wins. Every other downlink is a **cross-link**, printed as a dimmed `↗ path  (cross-link)` leaf and never recursed into. Ownership is containment, and a node cannot own itself, so the render is a tree whatever shape the downlinks form — a node that links its parent, its sibling, or itself renders each of those once, as a reference. `--no-cross-links` drops those lines, leaving the ownership tree alone. This is also why a target may appear as one node's `●` child and another's `↗`: only one node owns it.
 
 **Child ordering:** subdirectory children first (alphabetical), then same-directory files (alphabetical). This matches the convention used by `tree` and most file browsers.
 
@@ -118,7 +122,9 @@ Two associative arrays with distinct roles:
 
 `check_node` is recursive but bounded in practice: the graph of downlinks is shallow (node → offload file → done; offload files own no offloads of their own per `size-rules.md`) and the `visited` guard prevents cycles. There is no explicit depth limit.
 
-The function sets no globals that need restoration across recursive calls. Output is depth-first. Children are sorted with subdirectory entries first, same-directory files second, each group alphabetical. Orphans for a given node are merged into the same sorted list and rendered with `⚠` instead of `●`; they are leaf entries (no further recursion, since orphans are not in `node_data`).
+`render_text_tree` needs no such guard, because it walks ownership edges rather than downlinks and containment cannot loop. Ownership is resolved once in `main`, after traversal, so the deepest containing node wins regardless of visit order; each node's remaining downlinks move to its `cross` list.
+
+The function sets no globals that need restoration across recursive calls. Output is depth-first. Children are sorted with subdirectory entries first, same-directory files second, each group alphabetical. Orphans for a given node are merged into the same sorted list and rendered with `⚠` instead of `●`; they are leaf entries (no further recursion, since orphans are not in `node_data`). Cross-links are leaves for the same reason — the owning node renders the target.
 
 ### Token estimation
 
