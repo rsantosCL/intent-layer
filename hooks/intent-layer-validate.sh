@@ -75,8 +75,8 @@ exit_code=$?
 
 [[ $exit_code -eq 0 ]] && exit 0
 
-# Try to parse as JSON; if it fails (e.g. "No CLAUDE.md files found") exit
-# silently — not a real validation failure.
+# Output that isn't JSON means the tool failed, not the layer — a usage error,
+# a missing interpreter, a traceback. Stay silent rather than blame the edit.
 parsed=$(printf '%s' "$output" | jq -e '.' 2>/dev/null) || exit 0
 
 error_count=$(printf '%s' "$parsed" | jq '.summary.errors // 0')
