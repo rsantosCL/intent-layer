@@ -281,7 +281,7 @@ class Validator:
         for child in all_children:
             self.check_node(child)
 
-    def render_text_tree(self, file, connector, continuation, orphan_map):
+    def render_text_tree(self, file, connector, continuation, orphan_map, reason=None):
         data = self.node_data[file]
         c = self.c
         is_claude = data["is_claude"]
@@ -292,7 +292,15 @@ class Validator:
         if is_claude and data["token_pct"] > 100:
             token_color = c["RED"]
 
-        if is_claude:
+        if reason:
+            # An orphaned node still owns its subtree. Rendering it as a bare
+            # leaf would strand every descendant it owns, along with their
+            # issues, since nothing else renders them.
+            print(
+                f"{connector}{c['YELLOW']}{WARN_ICON} {data['rel']}"
+                f"  {tok} tokens  ({reason}){c['RESET']}"
+            )
+        elif is_claude:
             print(
                 f"{connector}{c['BOLD']}{MD_ICON} {data['rel']}{c['RESET']}"
                 f"  {token_color}{tok} tokens{c['RESET']}"
@@ -337,11 +345,12 @@ class Validator:
             is_last = i == n
             child_connector = f"{continuation}{'└─' if is_last else '├─'} "
             child_continuation = f"{continuation}{'   ' if is_last else '│  '}"
-            if reason is None:
+            if reason is None or item_path in self.node_data:
                 self.render_text_tree(
-                    item_path, child_connector, child_continuation, orphan_map
+                    item_path, child_connector, child_continuation, orphan_map, reason
                 )
             else:
+                # Unlinked files are not nodes, so there is no subtree to walk.
                 orphan_tok = _tokens(item_path)
                 orphan_rel = str(item_path.relative_to(self.target))
                 print(

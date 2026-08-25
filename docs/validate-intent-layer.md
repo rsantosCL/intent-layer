@@ -19,7 +19,7 @@ Arguments are parsed with `argparse`, so usage errors — an unknown flag, or `-
 
 ### Text mode (default)
 
-The output is a single depth-first tree rooted at the root `CLAUDE.md`. Every file — nodes and offload files alike — is rendered with a `●` prefix. The root node is flush-left; all children use `├─`/`└─` connectors and indent with `│  `/`   ` continuation strings. Nesting is unbounded. Orphan files appear in the tree under their nearest ancestor node, marked `⚠` in yellow with the reason in parentheses.
+The output is a single depth-first tree rooted at the root `CLAUDE.md`. Every file — nodes and offload files alike — is rendered with a `●` prefix. The root node is flush-left; all children use `├─`/`└─` connectors and indent with `│  `/`   ` continuation strings. Nesting is unbounded. Orphan files appear in the tree under their nearest ancestor node, marked `⚠` in yellow with the reason in parentheses. An orphaned node keeps its subtree: its children render beneath the `⚠` line, so no node — and no issue of a node — is ever absent from the text output that the JSON reports.
 
 **Tree edges are ownership, not references.** A node owns a downlink target only when its own directory contains it; where several nodes qualify, the deepest wins. Every other downlink is a **cross-link**, printed as a dimmed `↗ path  (cross-link)` leaf and never recursed into. Ownership is containment, and a node cannot own itself, so the render is a tree whatever shape the downlinks form — a node that links its parent, its sibling, or itself renders each of those once, as a reference. `--no-cross-links` drops those lines, leaving the ownership tree alone. This is also why a target may appear as one node's `●` child and another's `↗`: only one node owns it.
 
@@ -124,7 +124,7 @@ Two associative arrays with distinct roles:
 
 `render_text_tree` needs no such guard, because it walks ownership edges rather than downlinks and containment cannot loop. Ownership is resolved once in `main`, after traversal, so the deepest containing node wins regardless of visit order; each node's remaining downlinks move to its `cross` list.
 
-The function sets no globals that need restoration across recursive calls. Output is depth-first. Children are sorted with subdirectory entries first, same-directory files second, each group alphabetical. Orphans for a given node are merged into the same sorted list and rendered with `⚠` instead of `●`; they are leaf entries (no further recursion, since orphans are not in `node_data`). Cross-links are leaves for the same reason — the owning node renders the target.
+The function sets no globals that need restoration across recursive calls. Output is depth-first. Children are sorted with subdirectory entries first, same-directory files second, each group alphabetical. Orphans for a given node are merged into the same sorted list and rendered with `⚠` instead of `●`. An orphaned `CLAUDE.md` is still a node in `node_data`, so recursion continues into whatever it owns — stopping there would strand its descendants, because ownership is containment and an orphan out-competes the legitimate owner for its own subtree. Only unlinked `.md` files are leaves: they are not nodes and own nothing. Cross-links are leaves too — the owning node renders the target.
 
 ### Token estimation
 
